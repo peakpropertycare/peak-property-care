@@ -8,51 +8,116 @@ import {
   ClipboardList, Users, DollarSign, TrendingUp, Briefcase,
   Home as HomeIcon, ChevronRight, ChevronLeft, CalendarDays,
   Info, LayoutDashboard, Navigation, Tag, Search as SearchIcon,
-  Zap, Target, Award, BarChart2, Star, Bell, ArrowUpRight,
+  Zap, Target, Award, BarChart2, Star, ArrowUpRight,
+  FileText, MessageSquare, Copy, Wind, CloudRain, CloudSun,
+  Cloud, Thermometer, Wrench, CheckSquare, Square, Send,
+  Percent, Hash, Layers,
 } from "lucide-react";
 import { storage } from "./lib/storage";
 import logo from "./assets/logo.png";
 
-/* ---------- design tokens ---------- */
-const ACCENT = "#0048CD";
-const ACCENT_DEEP = "#002C82";
-const INK = "#081226";
-const INK_SOFT = "#1C2D4A";
-const ACCENT_LIGHT = "#9CC2FF";
-const BG = "#F2F5FC";
-const LINE = "#DDE6F5";
-const AMBER = "#C9852A";
-const GREEN = "#3F8F63";
-const RED = "#B3493A";
-const GRAY = "#8C97A0";
-const MUTED = "#5A6B85";
-const PURPLE = "#7C5CBF";
-const PINK = "#C9476B";
+/* ═══════════════════════════════════════
+   DESIGN TOKENS — Premium 2026 palette
+   ═══════════════════════════════════════ */
+const P       = "#0057FF";   // primary blue
+const P_DEEP  = "#003ED4";
+const P_LIGHT = "#E0EAFF";
+const CYAN    = "#00B8D9";
+const CYAN_L  = "#D8F7FF";
+const EMERALD = "#00C896";
+const EM_DEEP = "#00A07A";
+const EM_L    = "#D4F9F0";
+const AMBER   = "#FF9F1C";
+const AMB_L   = "#FFF2D8";
+const RED     = "#FF4757";
+const RED_L   = "#FFE4E7";
+const VIOLET  = "#7B5EA7";
+const VIO_L   = "#EEE6FF";
+const DARK    = "#060F1E";   // header/nav
+const DARK2   = "#0C1A30";   // sidebar
+const INK     = "#1A2744";   // primary text
+const INK_SOFT= "#2D4068";
+const MUTED   = "#6B7A99";
+const LINE    = "#E0E8F8";
+const BG      = "#F0F4FF";
+const CARD    = "#FFFFFF";
+const ACCENT_LIGHT = "#B8CCFF";
 
-const FONT_HEAD = "'Space Grotesk', sans-serif";
-const FONT_BODY = "Inter, sans-serif";
-const FONT_MONO = "'IBM Plex Mono', monospace";
+// Legacy aliases so older component refs still work
+const ACCENT      = P;
+const ACCENT_DEEP = P_DEEP;
+const GREEN       = EMERALD;
+const PURPLE      = VIOLET;
+const PINK        = "#E0436B";
+const GRAY        = "#9AA8C0";
 
+const FONT_HEAD = "'Plus Jakarta Sans', sans-serif";
+const FONT_BODY = "'DM Sans', sans-serif";
+const FONT_MONO = "'JetBrains Mono', monospace";
+
+/* ── Services ── */
 const SERVICES = [
-  { id: "window", label: "Window Cleaning", icon: Droplets, color: ACCENT },
-  { id: "solar", label: "Solar Panel Cleaning", icon: Sun, color: AMBER },
-  { id: "pressure", label: "Pressure Washing", icon: Sparkles, color: GREEN },
+  { id: "window",   label: "Window Cleaning",    icon: Droplets,  color: P      },
+  { id: "solar",    label: "Solar Panel Cleaning",icon: Sun,       color: AMBER  },
+  { id: "pressure", label: "Pressure Washing",    icon: Sparkles,  color: EMERALD},
+  { id: "gutter",   label: "Gutter Cleaning",     icon: Layers,    color: VIOLET },
 ];
 
+/* ── Quote pricing defaults ($/unit) ── */
+const QUOTE_RATES = {
+  windowExt: 10,   // per window exterior
+  windowInt:  5,   // per window add-on interior
+  solar:    250,   // flat per visit
+  pressure: 200,   // flat
+  gutter:   175,   // flat
+};
+
+const PROP_TYPES = [
+  { id: "1story",    label: "1-Story",    windows: 12 },
+  { id: "2story",    label: "2-Story",    windows: 22 },
+  { id: "3story",    label: "3-Story",    windows: 34 },
+  { id: "commercial",label: "Commercial", windows: 50 },
+];
+
+const emptyQuote = {
+  clientName: "", address: "", propType: "2story",
+  windowCount: 22, includeInterior: false,
+  services: ["window"], gutterCleaning: false,
+  notes: "", status: "pending",
+};
+
+/* ── Frequencies ── */
 const FREQUENCIES = [
-  { id: "one-time", label: "One-time" },
-  { id: "monthly", label: "Monthly" },
+  { id: "one-time",  label: "One-time" },
+  { id: "monthly",   label: "Monthly" },
   { id: "quarterly", label: "Quarterly" },
-  { id: "biannual", label: "Every 6 months" },
-  { id: "annual", label: "Annual" },
+  { id: "biannual",  label: "Every 6 months" },
+  { id: "annual",    label: "Annual" },
 ];
 
+/* ── Canvass statuses ── */
 const HOUSE_STATUSES = [
-  { id: "not-home", label: "Not Home", color: GRAY },
-  { id: "no", label: "Said No", color: RED },
-  { id: "callback", label: "Call/Text Back", color: AMBER },
-  { id: "appointment", label: "Appointment Set", color: ACCENT },
-  { id: "completed", label: "Job Completed", color: GREEN },
+  { id: "not-home",    label: "Not Home",        color: GRAY   },
+  { id: "no",          label: "Said No",          color: RED    },
+  { id: "callback",    label: "Call/Text Back",   color: AMBER  },
+  { id: "appointment", label: "Appointment Set",  color: P      },
+  { id: "completed",   label: "Job Completed",    color: EMERALD},
+];
+
+/* ── Communication templates ── */
+const COMM_TEMPLATES = [
+  { id: "reminder", label: "Appointment Reminder",
+    icon: CalendarDays, color: P,
+    sms: (c) => `Hi ${c.name?.split(" ")[0] || "there"}! Just a reminder your ${c.services?.map((s) => ({ window:"window cleaning", solar:"solar panel cleaning", pressure:"pressure washing", gutter:"gutter cleaning" })[s]).join(" & ")} appointment with Peak Property Care is scheduled for ${c.nextServiceDate ? new Date(c.nextServiceDate+"T00:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}) : "your upcoming date"}${c.nextServiceTime ? " at "+formatTime(c.nextServiceTime) : ""}. Reply STOP to opt out.` },
+  { id: "followup", label: "Follow-Up / Review Request",
+    icon: Star, color: AMBER,
+    sms: (c) => `Hi ${c.name?.split(" ")[0] || "there"}! Thanks for choosing Peak Property Care — we hope your windows are sparkling! 🪟 If you have a minute, we'd love a quick Google review: [your-link-here]. See you next time!` },
+  { id: "quote",    label: "Quote Follow-Up",
+    icon: FileText, color: EMERALD,
+    sms: (c) => `Hi ${c.name?.split(" ")[0] || "there"}! Following up on the quote we sent for Peak Property Care services. Ready to book? Reply YES and we'll get you scheduled right away. Questions? Just text back!` },
+  { id: "seasonal", label: "Seasonal Outreach",
+    icon: CloudSun, color: CYAN,
+    sms: (c) => `Hi ${c.name?.split(" ")[0] || "there"}! 🌞 Spring is the perfect time for sparkling clean windows! As a valued Peak Property Care client, you're first in line. Reply BOOK to lock in your spot before we fill up!` },
 ];
 
 const US_STATES = [
@@ -62,22 +127,23 @@ const US_STATES = [
 ];
 
 const NAV_ITEMS = [
-  { id: "dashboard", label: "Home", icon: LayoutDashboard },
-  { id: "clients", label: "Clients", icon: Users },
-  { id: "schedule", label: "Schedule", icon: ClipboardList },
-  { id: "canvass", label: "Door Map", icon: HomeIcon },
-  { id: "finance", label: "Finance", icon: DollarSign },
+  { id: "dashboard", label: "Home",     icon: LayoutDashboard },
+  { id: "clients",   label: "Clients",  icon: Users           },
+  { id: "schedule",  label: "Schedule", icon: ClipboardList   },
+  { id: "canvass",   label: "Door Map", icon: HomeIcon        },
+  { id: "quotes",    label: "Quotes",   icon: FileText        },
+  { id: "finance",   label: "Finance",  icon: DollarSign      },
 ];
 
 const DURATION_PRESETS = [30, 60, 90, 120];
 const CLIENT_TAGS = ["Recurring", "High Value", "Commercial", "Residential", "Referral"];
 const PHOTO_CATEGORIES = [
   { id: "property", label: "Property" },
-  { id: "before", label: "Before" },
-  { id: "after", label: "After" },
-  { id: "job", label: "Job" },
+  { id: "before",   label: "Before"   },
+  { id: "after",    label: "After"    },
+  { id: "job",      label: "Job"      },
 ];
-const AVATAR_COLORS = [ACCENT, GREEN, AMBER, PURPLE, PINK, "#2A9D8F"];
+const AVATAR_COLORS = [P, EMERALD, AMBER, VIOLET, PINK, CYAN, "#E0436B"];
 
 const serviceMap = Object.fromEntries(SERVICES.map((s) => [s.id, s]));
 const statusMap = Object.fromEntries(HOUSE_STATUSES.map((s) => [s.id, s]));
@@ -246,64 +312,66 @@ const emptyForm = {
   notes: "",
 };
 
-/* ---------- shared bits ---------- */
+/* ═══════════════════════════════════════
+   SHARED COMPONENTS
+   ═══════════════════════════════════════ */
+
 function ServiceBadge({ id, size = "sm" }) {
   const s = serviceMap[id];
   if (!s) return null;
   const Icon = s.icon;
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full border px-2 ${size === "sm" ? "py-0.5 text-xs" : "py-1 text-sm"}`}
-      style={{ borderColor: s.color, color: s.color, backgroundColor: `${s.color}14` }}
-    >
-      <Icon size={size === "sm" ? 12 : 14} />
+    <span className={`inline-flex items-center gap-1 rounded-full border font-semibold ${size === "sm" ? "px-2 py-0.5 text-xs" : "px-2.5 py-1 text-sm"}`}
+      style={{ borderColor: `${s.color}50`, color: s.color, background: `${s.color}12` }}>
+      <Icon size={size === "sm" ? 11 : 13} strokeWidth={2.2} />
       {s.label}
     </span>
   );
 }
+
 function TagBadge({ label }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs" style={{ borderColor: LINE, color: MUTED, background: BG }}>
-      <Tag size={10} />{label}
+    <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium"
+      style={{ borderColor: `${P}25`, color: P, background: P_LIGHT }}>
+      <Tag size={9} strokeWidth={2.3} />{label}
     </span>
   );
 }
+
 function Avatar({ name, size = 36 }) {
+  const bg = getAvatarColor(name);
   return (
-    <div style={{ width: size, height: size, borderRadius: "50%", background: getAvatarColor(name), color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_HEAD, fontWeight: 700, fontSize: size * 0.36, flexShrink: 0 }}>
+    <div style={{ width: size, height: size, borderRadius: "50%", background: `linear-gradient(135deg, ${bg}, ${bg}99)`, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_HEAD, fontWeight: 800, fontSize: size * 0.36, flexShrink: 0, boxShadow: `0 2px 8px ${bg}40` }}>
       {getInitials(name)}
     </div>
   );
 }
 
 const inputStyle = {
-  width: "100%",
-  borderRadius: 8,
-  border: `1px solid ${LINE}`,
-  padding: "8px 10px",
-  fontSize: "0.875rem",
-  outline: "none",
-  fontFamily: FONT_BODY,
+  width: "100%", borderRadius: 10, border: `1.5px solid ${LINE}`,
+  padding: "9px 12px", fontSize: "0.875rem", outline: "none",
+  fontFamily: FONT_BODY, background: "white", color: INK,
 };
 
-function Field({ label, children }) {
+function Field({ label, children, hint }) {
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-xs font-medium" style={{ color: MUTED }}>{label}</span>
+    <label className="flex flex-col gap-1.5">
+      <span className="text-xs font-bold tracking-wide uppercase" style={{ color: MUTED, letterSpacing: "0.07em" }}>{label}</span>
       {children}
+      {hint && <span className="text-xs" style={{ color: MUTED }}>{hint}</span>}
     </label>
   );
 }
 
 function Logo() {
   return (
-    <div className="flex items-center gap-2.5">
-      <div style={{ width: 38, height: 38, borderRadius: 10, background: "white", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 5 }}>
+    <div className="flex items-center gap-3">
+      <div style={{ width: 40, height: 40, borderRadius: 12, background: "linear-gradient(135deg, rgba(255,255,255,0.25), rgba(255,255,255,0.1))", border: "1px solid rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 6, backdropFilter: "blur(8px)" }}>
         <img src={logo} alt="Peak Property Care logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
       </div>
       <div>
-        <div style={{ fontFamily: FONT_HEAD, fontWeight: 700, color: "white" }} className="text-base leading-tight">Peak Property Care</div>
-        <div style={{ fontFamily: FONT_MONO, color: ACCENT_LIGHT, fontSize: "0.62rem", letterSpacing: "0.18em" }} className="uppercase">Client Hub</div>
+        <div style={{ fontFamily: FONT_HEAD, fontWeight: 800, color: "white", fontSize: "0.95rem", letterSpacing: "-0.01em" }}>Peak Property Care</div>
+        <div style={{ fontFamily: FONT_MONO, color: ACCENT_LIGHT, fontSize: "0.58rem", letterSpacing: "0.2em" }} className="uppercase">Client Hub · Pro</div>
       </div>
     </div>
   );
@@ -315,8 +383,8 @@ function ToastContainer({ toasts }) {
   return createPortal(
     <div className="fixed top-4 right-4 flex flex-col gap-2" style={{ zIndex: 99999 }}>
       {toasts.map((t) => (
-        <div key={t.id} className="animate-toast flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-xl text-sm font-semibold text-white"
-          style={{ background: t.type === "error" ? RED : t.type === "warning" ? AMBER : GREEN, minWidth: 220 }}>
+        <div key={t.id} className="anim-toast flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl text-sm font-bold text-white"
+          style={{ background: t.type === "error" ? `linear-gradient(135deg,${RED},#CC0011)` : t.type === "warning" ? `linear-gradient(135deg,${AMBER},#E07800)` : `linear-gradient(135deg,${EMERALD},${EM_DEEP})`, minWidth: 230, boxShadow: `0 8px 24px ${t.type === "error" ? RED : t.type === "warning" ? AMBER : EMERALD}55` }}>
           {t.type === "error" ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}
           {t.message}
         </div>
@@ -329,21 +397,24 @@ function ToastContainer({ toasts }) {
 /* ── StatCard ── */
 function StatCard({ icon: Icon, label, value, accent, sub, trend }) {
   return (
-    <div className="hover-lift relative overflow-hidden rounded-2xl p-4"
-      style={{ background: `linear-gradient(135deg, #fff 0%, ${accent}0C 100%)`, border: `1px solid ${accent}28`, boxShadow: `0 4px 20px ${accent}10` }}>
-      <div className="absolute -top-3 -right-3 opacity-[0.06]" style={{ color: accent }}><Icon size={88} /></div>
+    <div className="card card-lift relative overflow-hidden p-5 cursor-default"
+      style={{ background: `linear-gradient(145deg, #fff 0%, ${accent}0A 100%)`, borderColor: `${accent}28`, boxShadow: `0 4px 20px ${accent}0F` }}>
+      <div className="absolute -top-4 -right-4 pointer-events-none" style={{ color: accent, opacity: 0.06 }}><Icon size={96} /></div>
       <div className="relative">
-        <div className="flex items-center justify-between mb-3">
-          <div className="rounded-xl p-2" style={{ background: `${accent}18` }}><Icon size={17} style={{ color: accent }} /></div>
+        <div className="flex items-start justify-between mb-4">
+          <div className="rounded-2xl p-2.5" style={{ background: `${accent}18` }}>
+            <Icon size={18} style={{ color: accent }} strokeWidth={2} />
+          </div>
           {trend !== undefined && (
-            <span className="flex items-center gap-0.5 text-xs font-bold" style={{ color: trend >= 0 ? GREEN : RED }}>
-              <ArrowUpRight size={13} style={{ transform: trend < 0 ? "rotate(90deg)" : "none" }} />{Math.abs(trend)}%
+            <span className="flex items-center gap-0.5 text-xs font-bold px-2 py-0.5 rounded-full" style={{ color: trend >= 0 ? EMERALD : RED, background: trend >= 0 ? EM_L : RED_L }}>
+              <ArrowUpRight size={11} style={{ transform: trend < 0 ? "rotate(90deg)" : "none" }} />
+              {Math.abs(trend)}%
             </span>
           )}
         </div>
-        <p className="text-2xl font-black tracking-tight animate-count" style={{ color: INK, fontFamily: FONT_HEAD }}>{value}</p>
-        <p className="text-xs font-bold mt-0.5" style={{ color: accent }}>{label}</p>
-        {sub && <p className="text-xs mt-0.5" style={{ color: MUTED }}>{sub}</p>}
+        <p className="text-3xl font-black tracking-tight anim-count" style={{ color: INK, fontFamily: FONT_HEAD, letterSpacing: "-0.02em" }}>{value}</p>
+        <p className="text-xs font-bold mt-1" style={{ color: accent, fontFamily: FONT_HEAD }}>{label}</p>
+        {sub && <p className="text-xs mt-0.5" style={{ color: MUTED, fontFamily: FONT_BODY }}>{sub}</p>}
       </div>
     </div>
   );
@@ -354,14 +425,13 @@ function MiniBarChart({ data }) {
   if (!data.length) return null;
   const max = Math.max(...data.map((d) => d.revenue), 1);
   return (
-    <div className="flex items-end gap-1.5 h-16 mt-3">
-      {data.slice().reverse().map((item) => {
+    <div className="flex items-end gap-2 h-20 mt-2">
+      {data.slice().reverse().map((item, i) => {
         const pct = Math.max(6, (item.revenue / max) * 100);
         return (
-          <div key={item.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-            <div className="w-full rounded-t-md bar-fill"
-              style={{ height: `${pct}%`, background: `linear-gradient(to top, ${ACCENT}, ${ACCENT_LIGHT})` }} />
-            <span style={{ color: MUTED, fontSize: "0.58rem", fontFamily: FONT_MONO }}>{item.month.slice(5)}</span>
+          <div key={item.month} className="flex-1 flex flex-col items-center gap-1 min-w-0" style={{ animationDelay: `${i * 0.06}s` }}>
+            <div className="w-full rounded-t-lg bar-fill" style={{ height: `${pct}%`, background: `linear-gradient(to top, ${P}, ${CYAN})` }} />
+            <span className="font-mono" style={{ color: MUTED, fontSize: "0.6rem" }}>{item.month.slice(5)}</span>
           </div>
         );
       })}
@@ -370,33 +440,165 @@ function MiniBarChart({ data }) {
 }
 
 /* ── Progress bar ── */
-function ProgressBar({ value, max, color }) {
+function ProgressBar({ value, max, color, height = 8 }) {
   const pct = max ? Math.min(100, (value / max) * 100) : 0;
   return (
-    <div className="h-2 rounded-full overflow-hidden mt-2" style={{ background: `${color}18` }}>
-      <div className="h-full rounded-full progress-fill" style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${color}, ${color}99)` }} />
+    <div className="rounded-full overflow-hidden" style={{ height, background: `${color}18`, marginTop: 8 }}>
+      <div className="h-full rounded-full progress-fill" style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${color}, ${color}BB)` }} />
     </div>
   );
 }
 
-function TabHero({ icons, from, to, title, subtitle, action }) {
+/* ── Donut chart (CSS conic-gradient) ── */
+function DonutChart({ segments, size = 100 }) {
+  let cumulative = 0;
+  const total = segments.reduce((s, seg) => s + seg.value, 0);
+  if (!total) return null;
+  const gradientParts = segments.map((seg) => {
+    const pct = (seg.value / total) * 100;
+    const from = cumulative;
+    cumulative += pct;
+    return `${seg.color} ${from}% ${cumulative}%`;
+  }).join(", ");
   return (
-    <div className="relative overflow-hidden rounded-2xl mb-5 px-5 py-6 shadow-lg animate-fade-in" style={{ background: `linear-gradient(135deg, ${from} 0%, ${to} 100%)` }}>
-      {/* Radial glow */}
-      <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at top right, rgba(255,255,255,0.12) 0%, transparent 60%)" }} />
+    <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+      <div style={{ width: size, height: size, borderRadius: "50%", background: `conic-gradient(${gradientParts})`, boxShadow: "0 4px 16px rgba(0,0,0,0.12)" }} />
+      <div style={{ position: "absolute", inset: size * 0.22, borderRadius: "50%", background: "white", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span className="text-xs font-black" style={{ color: INK, fontFamily: FONT_HEAD }}>{segments.length}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Weather widget ── */
+function WeatherWidget() {
+  const [weather, setWeather] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!navigator.geolocation) { setLoading(false); return; }
+    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+      try {
+        const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${coords.latitude}&longitude=${coords.longitude}&current=temperature_2m,weathercode,windspeed_10m,precipitation&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto`);
+        const d = await r.json();
+        setWeather(d.current);
+      } catch { /* ignore */ }
+      setLoading(false);
+    }, () => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="shimmer-bg rounded-2xl h-20" />;
+  if (!weather) return null;
+
+  const code = weather.weathercode ?? 0;
+  const temp = Math.round(weather.temperature_2m ?? 70);
+  const wind = Math.round(weather.windspeed_10m ?? 0);
+  const precip = weather.precipitation ?? 0;
+
+  const isGood = code <= 3 && wind < 20 && precip === 0;
+  const isOk   = (code <= 3 || code === 45) && wind < 30;
+  const icon   = code === 0 ? Sun : code <= 2 ? CloudSun : code <= 3 ? Cloud : CloudRain;
+  const WeatherIcon = icon;
+  const verdict = isGood ? "Perfect for cleaning" : isOk ? "Manageable conditions" : "Tough day — reschedule if possible";
+  const vColor  = isGood ? EMERALD : isOk ? AMBER : RED;
+
+  return (
+    <div className="card p-4 flex items-center gap-4">
+      <div className="rounded-2xl p-3 flex-shrink-0" style={{ background: isGood ? EM_L : isOk ? AMB_L : RED_L }}>
+        <WeatherIcon size={26} style={{ color: vColor }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-bold" style={{ color: vColor }}>{verdict}</p>
+        <div className="flex items-center gap-3 mt-0.5">
+          <span className="flex items-center gap-1 text-sm font-bold" style={{ color: INK, fontFamily: FONT_MONO }}><Thermometer size={12} />{temp}°F</span>
+          <span className="flex items-center gap-1 text-xs" style={{ color: MUTED }}><Wind size={11} />{wind} mph</span>
+          {precip > 0 && <span className="flex items-center gap-1 text-xs" style={{ color: RED }}><CloudRain size={11} />{precip}mm rain</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Van checklist ── */
+const VAN_ITEMS = [
+  "Squeegees (all sizes)", "Scrubbers & sleeves", "Window cleaning solution",
+  "Bucket & T-bar", "Extension poles", "Microfibre cloths",
+  "Safety harness / ladder", "Pressure washer hose", "Solar panel brushes",
+  "Invoice book / tablet", "Uniform & gloves",
+];
+
+function VanChecklist() {
+  const [checked, setChecked] = useState(() => {
+    try { const d = localStorage.getItem("vanChecklist"); return d ? JSON.parse(d) : {}; } catch { return {}; }
+  });
+  const [open, setOpen] = useState(false);
+
+  function toggle(item) {
+    setChecked((prev) => {
+      const next = { ...prev, [item]: !prev[item] };
+      localStorage.setItem("vanChecklist", JSON.stringify(next));
+      return next;
+    });
+  }
+  function resetAll() {
+    setChecked({});
+    localStorage.setItem("vanChecklist", "{}");
+  }
+
+  const done = VAN_ITEMS.filter((i) => checked[i]).length;
+
+  return (
+    <div className="card overflow-hidden">
+      <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center gap-3 p-4">
+        <div className="rounded-xl p-2" style={{ background: `${VIOLET}18` }}>
+          <Wrench size={16} style={{ color: VIOLET }} />
+        </div>
+        <div className="text-left flex-1">
+          <p className="text-sm font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>Van Checklist</p>
+          <p className="text-xs" style={{ color: done === VAN_ITEMS.length ? EMERALD : MUTED }}>{done}/{VAN_ITEMS.length} packed</p>
+        </div>
+        <ProgressBar value={done} max={VAN_ITEMS.length} color={done === VAN_ITEMS.length ? EMERALD : P} height={5} />
+        <ChevronRight size={16} style={{ color: MUTED, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.2s" }} />
+      </button>
+      {open && (
+        <div className="border-t px-4 pb-4" style={{ borderColor: LINE }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 mt-3">
+            {VAN_ITEMS.map((item) => (
+              <button key={item} onClick={() => toggle(item)} className="flex items-center gap-2 text-sm py-1.5 text-left rounded-lg px-2 hover:bg-slate-50 transition-colors">
+                {checked[item] ? <CheckSquare size={16} style={{ color: EMERALD, flexShrink: 0 }} /> : <Square size={16} style={{ color: LINE, flexShrink: 0 }} />}
+                <span style={{ color: checked[item] ? MUTED : INK, textDecoration: checked[item] ? "line-through" : "none" }}>{item}</span>
+              </button>
+            ))}
+          </div>
+          <button onClick={resetAll} className="text-xs font-semibold mt-3" style={{ color: MUTED }}>Reset all</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TabHero({ icons, from, to, title, subtitle, action, tag }) {
+  return (
+    <div className="relative overflow-hidden rounded-3xl mb-6 px-6 py-6 anim-fade-up"
+      style={{ background: `linear-gradient(135deg, ${from} 0%, ${to} 100%)`, boxShadow: `0 16px 48px ${from}44` }}>
+      {/* Noise texture overlay */}
+      <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.06'/%3E%3C/svg%3E\")" }} />
+      {/* Dot grid */}
+      <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.15) 1px, transparent 1px)", backgroundSize: "22px 22px" }} />
+      {/* Glow */}
+      <div className="absolute top-0 right-0 w-64 h-64 rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%)", transform: "translate(30%, -40%)" }} />
       {/* Decorative icons */}
-      <div className="absolute inset-0 flex items-center justify-end pr-4 gap-0" style={{ opacity: 0.12 }}>
+      <div className="absolute right-4 bottom-0 flex items-end gap-0 pointer-events-none" style={{ opacity: 0.13 }}>
         {icons.map((Icon, i) => (
-          <Icon key={i} size={90 - i * 18} color="white" style={{ transform: `rotate(${(i - 1) * 12}deg)`, marginLeft: -18 }} />
+          <Icon key={i} size={88 - i * 16} color="white" style={{ transform: `rotate(${(i - 1) * 14}deg) translateY(${i * 8}px)`, marginLeft: -12 }} />
         ))}
       </div>
-      <img src={logo} alt="" style={{ position: "absolute", left: 12, bottom: -16, width: 72, opacity: 0.1 }} />
-      {/* Dot grid */}
-      <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.12) 1px, transparent 1px)", backgroundSize: "24px 24px", opacity: 0.4 }} />
+      <img src={logo} alt="" style={{ position: "absolute", left: 14, bottom: -18, width: 80, opacity: 0.08 }} />
       <div className="relative z-10 flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-white text-xl font-black tracking-tight" style={{ fontFamily: FONT_HEAD }}>{title}</h1>
-          {subtitle && <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.8)" }}>{subtitle}</p>}
+          {tag && <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold mb-2" style={{ background: "rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.95)" }}>{tag}</span>}
+          <h1 className="text-white font-black tracking-tight" style={{ fontFamily: FONT_HEAD, fontSize: "1.35rem", letterSpacing: "-0.02em" }}>{title}</h1>
+          {subtitle && <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.78)", fontFamily: FONT_BODY }}>{subtitle}</p>}
         </div>
         {action}
       </div>
@@ -561,11 +763,26 @@ export default function App() {
   const [page, setPage] = useState("dashboard");
   const [scheduleDate, setScheduleDate] = useState(todayStr());
   const [toasts, setToasts] = useState([]);
+  const [quotes, setQuotes] = useState([]);
 
   function showToast(message, type = "success") {
     const id = genId();
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
+  }
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await storage.get("quotes");
+        if (r) setQuotes(JSON.parse(r.value));
+      } catch { setQuotes([]); }
+    })();
+  }, []);
+
+  async function persistQuotes(next) {
+    setQuotes(next);
+    await storage.set("quotes", JSON.stringify(next));
   }
 
   const [query, setQuery] = useState("");
@@ -599,9 +816,9 @@ export default function App() {
   useEffect(() => {
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap";
+    link.href = "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap";
     document.head.appendChild(link);
-    return () => document.head.removeChild(link);
+    return () => { if (document.head.contains(link)) document.head.removeChild(link); };
   }, []);
 
   async function persist(next, toast) {
@@ -719,79 +936,91 @@ export default function App() {
 
   return (
     <div style={{ background: BG, fontFamily: FONT_BODY, minHeight: "100vh" }} className="text-slate-800 flex flex-col">
-      <header style={{ background: `linear-gradient(135deg, ${INK} 0%, #0B1F3E 100%)`, borderBottom: `1px solid rgba(255,255,255,0.06)` }} className="px-4 sm:px-6 py-3.5 flex items-center justify-between shrink-0">
+      <header style={{ background: `linear-gradient(135deg, ${DARK} 0%, #0C1E38 100%)`, borderBottom: "1px solid rgba(255,255,255,0.06)" }} className="px-4 sm:px-6 py-3 flex items-center justify-between shrink-0">
         <Logo />
         <div className="flex items-center gap-3">
           {saveState === "saving" && (
-            <span className="flex items-center gap-1 text-xs" style={{ color: ACCENT_LIGHT, fontFamily: FONT_MONO }}>
-              <Loader2 size={11} className="animate-spin" /> saving…
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold" style={{ background: `${P}20`, color: ACCENT_LIGHT, fontFamily: FONT_MONO }}>
+              <Loader2 size={10} className="animate-spin" /> saving…
             </span>
           )}
           {saveState === "error" && (
-            <span className="flex items-center gap-1 text-xs" style={{ color: RED, fontFamily: FONT_MONO }}>
-              <AlertTriangle size={11} /> save failed
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold" style={{ background: `${RED}20`, color: RED, fontFamily: FONT_MONO }}>
+              <AlertTriangle size={10} /> save failed
             </span>
           )}
         </div>
       </header>
-      <div style={{ height: 3, background: `linear-gradient(90deg, ${ACCENT}, #00A3FF, ${GREEN}, ${ACCENT})`, backgroundSize: "200% 100%", animation: "shimmer 3s linear infinite" }} />
+      {/* Animated gradient accent stripe */}
+      <div style={{ height: 3, background: `linear-gradient(90deg, ${P}, ${CYAN}, ${EMERALD}, ${AMBER}, ${P})`, backgroundSize: "300% 100%", animation: "gradientPan 4s ease infinite" }} />
 
       <div className="flex flex-1 min-h-0">
-        <aside className="hidden sm:flex flex-col w-56 shrink-0 py-5 px-3 gap-1 border-r" style={{ background: "#07101F", borderColor: "rgba(255,255,255,0.05)" }}>
+        <aside className="hidden sm:flex flex-col w-60 shrink-0 py-4 px-3 gap-0.5 border-r" style={{ background: DARK2, borderColor: "rgba(255,255,255,0.05)" }}>
+          <p className="text-xs font-bold px-3 mb-2 mt-1 tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.18)", fontFamily: FONT_MONO }}>Navigation</p>
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const active = page === item.id;
             return (
               <button key={item.id} onClick={() => setPage(item.id)}
-                className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold text-left transition-all"
-                style={{ background: active ? `linear-gradient(135deg, ${ACCENT}40, ${ACCENT}20)` : "transparent", color: active ? "white" : "#6B839A", fontFamily: FONT_HEAD, borderLeft: active ? `3px solid ${ACCENT}` : "3px solid transparent", marginLeft: active ? 0 : 0 }}>
-                <Icon size={16} />
-                {item.label}
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-left transition-all relative overflow-hidden"
+                style={{ background: active ? `linear-gradient(135deg, ${P}35, ${P}18)` : "transparent", color: active ? "white" : "#5A7799", fontFamily: FONT_HEAD, borderLeft: active ? `3px solid ${P}` : "3px solid transparent" }}>
+                {active && <div className="absolute inset-0 rounded-xl" style={{ background: `radial-gradient(ellipse at left, ${P}20, transparent 70%)` }} />}
+                <Icon size={16} strokeWidth={active ? 2.5 : 2} style={{ position: "relative", zIndex: 1 }} />
+                <span style={{ position: "relative", zIndex: 1 }}>{item.label}</span>
+                {item.id === "quotes" && <span className="ml-auto px-1.5 py-0.5 rounded-full text-xs font-bold" style={{ background: `${VIOLET}30`, color: VIOLET, fontSize: "0.6rem" }}>NEW</span>}
               </button>
             );
           })}
-          <div className="mt-auto pt-4 border-t mx-1" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-            <p className="text-xs px-3" style={{ color: "#3D5268", fontFamily: FONT_MONO }}>Peak Property Care</p>
-            <p className="text-xs px-3" style={{ color: "#2A3D52" }}>v1.0</p>
+          <div className="mt-auto pt-4 mx-1 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+            <div className="px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.04)" }}>
+              <p className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.35)", fontFamily: FONT_HEAD }}>Peak Property Care</p>
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.18)", fontFamily: FONT_MONO }}>Client Hub v1.0</p>
+            </div>
           </div>
         </aside>
 
-        <main className="flex-1 min-w-0 overflow-y-auto px-4 sm:px-8 py-6 pb-24 sm:pb-10">
+        <main className="flex-1 min-w-0 overflow-y-auto px-4 sm:px-8 py-6 pb-32 sm:pb-12">
           {loading ? (
             <div className="flex items-center gap-2 text-sm py-12 justify-center" style={{ color: MUTED }}><Loader2 size={16} className="animate-spin" /> Loading…</div>
           ) : (
             <>
               {page === "dashboard" && (
                 <>
-                  <TabHero icons={[LayoutDashboard, Sparkles]} from={ACCENT} to={ACCENT_DEEP} title="Welcome back" subtitle="Here's what's happening with Peak Property Care." />
+                  <TabHero icons={[LayoutDashboard, Sparkles]} from={P} to={DARK} title="Welcome back" subtitle={`Here's your business at a glance — ${new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}`} />
                   <DashboardTab clients={clients} pins={pins} onOpenClient={setSelectedId} setPage={setPage} onAdd={openAdd} />
                 </>
               )}
               {page === "clients" && (
                 <>
                   <TabHero
-                    icons={[Users, HomeIcon]} from={ACCENT} to={INK}
+                    icons={[Users, HomeIcon]} from={P} to="#001A99"
                     title="Clients" subtitle="Your full client list and service plans."
-                    action={<button onClick={openAdd} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-white shrink-0 bg-white/15 backdrop-blur"><Plus size={16} /> Add client</button>}
+                    action={<button onClick={openAdd} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-bold text-white shrink-0" style={{ background: "rgba(255,255,255,0.2)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.25)" }}><Plus size={16} /> Add client</button>}
                   />
                   <ClientsTab clients={filtered} allCount={clients.length} query={query} setQuery={setQuery} serviceFilter={serviceFilter} setServiceFilter={setServiceFilter} onOpen={setSelectedId} onAdd={openAdd} />
                 </>
               )}
               {page === "schedule" && (
                 <>
-                  <TabHero icons={[CalendarDays, Clock]} from={AMBER} to={INK} title="Schedule" subtitle="Tap an open slot to book an appointment." />
+                  <TabHero icons={[CalendarDays, Clock]} from="#E07000" to="#7A2800" title="Schedule" subtitle="Tap an open slot to book an appointment." />
                   <ScheduleTab clients={clients} scheduleDate={scheduleDate} setScheduleDate={setScheduleDate} onOpenClient={setSelectedId} onBookSlot={(slot) => openBook(scheduleDate, slot)} />
                 </>
               )}
               {page === "canvass" && (
                 <>
-                  <TabHero icons={[HomeIcon, MapPin]} from={GREEN} to={INK} title="Door Map" subtitle="A real, live map — tap to drop a pin on any house." />
+                  <TabHero icons={[HomeIcon, MapPin]} from="#007A50" to="#003322" title="Door Map" subtitle="Tap the map to drop a pin. Tap a pin to edit." />
                   <DoorMap pins={pins} clients={clients} persistPins={persistPins} upsertClientAndPin={upsertClientAndPin} deletePin={deletePin} showToast={showToast} onOpenClient={(id) => { setSelectedId(id); setPage("clients"); }} />
+                </>
+              )}
+              {page === "quotes" && (
+                <>
+                  <TabHero icons={[FileText, DollarSign]} from="#6C3EE8" to="#3A0CA3" title="Quotes & Estimates" subtitle="Build instant quotes and track pending proposals." tag="NEW" />
+                  <QuotesTab quotes={quotes} clients={clients} persistQuotes={persistQuotes} showToast={showToast} upsertClientAndPin={upsertClientAndPin} />
                 </>
               )}
               {page === "finance" && (
                 <>
-                  <TabHero icons={[DollarSign, TrendingUp]} from={GREEN} to={ACCENT_DEEP} title="Finance" subtitle="Revenue, completed jobs, and projected income." />
+                  <TabHero icons={[DollarSign, TrendingUp]} from={EMERALD} to="#004D40" title="Finance" subtitle="Revenue, completed jobs, and projected income." />
                   <FinanceTab clients={clients} />
                 </>
               )}
@@ -800,14 +1029,14 @@ export default function App() {
         </main>
       </div>
 
-      <nav className="sm:hidden fixed bottom-0 inset-x-0 flex justify-around items-center py-2 px-1" style={{ background: "#0B1830", boxShadow: "0 -4px 16px rgba(0,0,0,0.3)" }}>
+      <nav className="sm:hidden fixed bottom-0 inset-x-0 flex items-center py-2 px-2 gap-1 overflow-x-auto" style={{ background: DARK2, boxShadow: "0 -1px 0 rgba(255,255,255,0.06), 0 -12px 40px rgba(0,0,0,0.4)", paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))" }}>
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const active = page === item.id;
           return (
-            <button key={item.id} onClick={() => setPage(item.id)} className="flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-xl" style={{ background: active ? `${ACCENT}35` : "transparent" }}>
-              <Icon size={18} color={active ? ACCENT_LIGHT : "#7488AC"} />
-              <span style={{ color: active ? ACCENT_LIGHT : "#7488AC", fontSize: "0.58rem", fontFamily: FONT_HEAD }}>{item.label}</span>
+            <button key={item.id} onClick={() => setPage(item.id)} className="flex flex-col items-center gap-0.5 flex-1 min-w-0 py-1.5 px-1 rounded-xl transition-all" style={{ background: active ? `${P}28` : "transparent" }}>
+              <Icon size={17} strokeWidth={active ? 2.5 : 2} color={active ? ACCENT_LIGHT : "#4A6280"} />
+              <span style={{ color: active ? ACCENT_LIGHT : "#4A6280", fontSize: "0.56rem", fontFamily: FONT_HEAD, whiteSpace: "nowrap" }}>{item.label}</span>
             </button>
           );
         })}
@@ -857,7 +1086,7 @@ export default function App() {
 function DashboardTab({ clients, pins, onOpenClient, setPage, onAdd }) {
   const today = todayStr();
   const todays = clients.filter((c) => c.nextServiceDate === today).sort((a, b) => (a.nextServiceTime || "").localeCompare(b.nextServiceTime || ""));
-  const followUps = pins.filter((p) => p.statusId === "callback").slice(0, 5);
+  const followUps = pins.filter((p) => p.statusId === "callback").slice(0, 4);
   const overdue = clients.filter((c) => c.nextServiceDate && daysUntil(c.nextServiceDate) < 0);
   const thisMonth = today.slice(0, 7);
   const lastMonth = (() => { const d = new Date(today + "T00:00:00"); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 7); })();
@@ -865,83 +1094,119 @@ function DashboardTab({ clients, pins, onOpenClient, setPage, onAdd }) {
   const lastMonthRevenue = clients.reduce((sum, c) => sum + (c.history || []).filter((h) => h.date.slice(0, 7) === lastMonth).reduce((s, h) => s + (Number(h.price) || 0), 0), 0);
   const revTrend = lastMonthRevenue ? Math.round(((monthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100) : undefined;
   const upcomingCount = clients.filter((c) => c.nextServiceDate && daysUntil(c.nextServiceDate) >= 0).length;
-  const totalPins = pins.length;
-  const appointmentPins = pins.filter((p) => p.statusId === "appointment" || p.statusId === "completed").length;
-  const convRate = totalPins ? Math.round((appointmentPins / totalPins) * 100) : 0;
+  const recurringCount = clients.filter((c) => c.frequency && c.frequency !== "one-time").length;
+  const topClients = useMemo(() => [...clients]
+    .filter((c) => (c.history || []).length > 0)
+    .map((c) => ({ ...c, lifetime: (c.history || []).reduce((s, h) => s + (Number(h.price) || 0), 0) }))
+    .sort((a, b) => b.lifetime - a.lifetime)
+    .slice(0, 5), [clients]);
 
   return (
-    <div className="animate-fade-in">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard icon={CalendarDays} label="Today's Jobs" value={todays.length} accent={ACCENT} sub={formatDate(today)} />
-        <StatCard icon={ClipboardList} label="Upcoming" value={upcomingCount} accent={AMBER} sub="Scheduled jobs" />
-        <StatCard icon={DollarSign} label="This Month" value={formatMoney(monthRevenue)} accent={GREEN} sub="Completed jobs" trend={revTrend} />
-        <StatCard icon={Target} label="Canvass Rate" value={`${convRate}%`} accent={PURPLE} sub={`${appointmentPins}/${totalPins} doors converted`} />
+    <div className="anim-fade-up" style={{ fontFamily: FONT_BODY }}>
+      {/* KPI row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5 stagger">
+        <StatCard icon={CalendarDays} label="Today's Jobs"   value={todays.length}         accent={P}       sub={formatDate(today)} />
+        <StatCard icon={ClipboardList} label="Upcoming"       value={upcomingCount}          accent={AMBER}   sub="Scheduled jobs" />
+        <StatCard icon={DollarSign}    label="This Month"     value={formatMoney(monthRevenue)} accent={EMERALD} sub="Completed jobs" trend={revTrend} />
+        <StatCard icon={Users}         label="Recurring"      value={recurringCount}         accent={VIOLET}  sub="Active service plans" />
       </div>
 
+      {/* Weather */}
+      <div className="mb-4"><WeatherWidget /></div>
+
+      {/* Overdue alert */}
       {overdue.length > 0 && (
-        <div className="rounded-2xl border px-4 py-3 mb-5 flex items-center gap-3" style={{ background: `${RED}0A`, borderColor: `${RED}30` }}>
-          <AlertTriangle size={16} style={{ color: RED, flexShrink: 0 }} />
-          <p className="text-sm font-medium" style={{ color: RED }}>
-            {overdue.length} overdue appointment{overdue.length > 1 ? "s" : ""} — {overdue.slice(0, 2).map((c) => c.name || "Unnamed").join(", ")}{overdue.length > 2 ? ` +${overdue.length - 2} more` : ""}
+        <div className="card mb-4 px-4 py-3 flex items-center gap-3" style={{ background: `linear-gradient(135deg, ${RED_L}, #fff)`, borderColor: `${RED}30` }}>
+          <div className="rounded-xl p-2 flex-shrink-0" style={{ background: `${RED}18` }}><AlertTriangle size={15} style={{ color: RED }} /></div>
+          <p className="text-sm font-semibold flex-1" style={{ color: RED }}>
+            {overdue.length} overdue — {overdue.slice(0, 2).map((c) => c.name?.split(" ")[0] || "Client").join(", ")}{overdue.length > 2 ? ` +${overdue.length - 2}` : ""}
           </p>
-          <button onClick={() => setPage("schedule")} className="ml-auto text-xs font-bold shrink-0" style={{ color: RED }}>View →</button>
+          <button onClick={() => setPage("schedule")} className="text-xs font-bold shrink-0 px-2.5 py-1 rounded-lg" style={{ background: `${RED}15`, color: RED }}>View →</button>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
-        <div className="bg-white rounded-2xl border p-4 shadow-sm" style={{ borderColor: LINE }}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        {/* Today's route */}
+        <div className="card p-4">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>Today's route</p>
-            <button onClick={() => setPage("schedule")} className="text-xs font-semibold px-2.5 py-1 rounded-lg" style={{ color: ACCENT, background: `${ACCENT}10` }}>View schedule</button>
+            <p className="text-sm font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>Today's Route</p>
+            <button onClick={() => setPage("schedule")} className="text-xs font-bold px-2.5 py-1 rounded-lg" style={{ color: P, background: P_LIGHT }}>Schedule →</button>
           </div>
           {todays.length === 0 ? (
-            <div className="flex flex-col items-center py-6 gap-2">
-              <CalendarDays size={28} style={{ color: ACCENT_LIGHT }} />
-              <p className="text-sm text-center" style={{ color: MUTED }}>Nothing booked today — <button onClick={() => setPage("schedule")} style={{ color: ACCENT }}>add an appointment</button></p>
+            <div className="flex flex-col items-center py-5 gap-2">
+              <div className="rounded-full p-3" style={{ background: P_LIGHT }}><CalendarDays size={22} style={{ color: P }} /></div>
+              <p className="text-sm text-center" style={{ color: MUTED }}>Nothing booked today.</p>
+              <button onClick={() => setPage("schedule")} className="text-xs font-bold px-3 py-1.5 rounded-lg" style={{ color: P, background: P_LIGHT }}>+ Book a job</button>
             </div>
           ) : (
             <div className="flex flex-col gap-1">
               {todays.map((c, i) => (
-                <button key={c.id} onClick={() => onOpenClient(c.id)} className="hover-lift flex items-center gap-3 text-left text-sm py-2 px-2 rounded-xl border border-transparent hover:border-current" style={{ borderColor: "transparent" }}>
-                  <span className="text-xs font-bold shrink-0 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: `${ACCENT}15`, color: ACCENT, fontFamily: FONT_MONO }}>{i + 1}</span>
+                <button key={c.id} onClick={() => onOpenClient(c.id)} className="card-lift flex items-center gap-3 text-left text-sm py-2 px-2 rounded-xl">
+                  <span className="text-xs font-black w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: `${P}18`, color: P, fontFamily: FONT_MONO }}>{i + 1}</span>
                   <Avatar name={c.name} size={30} />
-                  <span className="flex-1 min-w-0 truncate font-medium" style={{ color: INK }}>{c.name || "Unnamed client"}</span>
-                  <span className="text-xs font-mono shrink-0 px-2 py-0.5 rounded-full" style={{ background: `${ACCENT}10`, color: ACCENT }}>{c.nextServiceTime ? formatTime(c.nextServiceTime) : "—"}</span>
+                  <span className="flex-1 min-w-0 truncate font-semibold" style={{ color: INK }}>{c.name || "Unnamed client"}</span>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: P_LIGHT, color: P, fontFamily: FONT_MONO }}>{c.nextServiceTime ? formatTime(c.nextServiceTime) : "—"}</span>
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        <div className="bg-white rounded-2xl border p-4 shadow-sm" style={{ borderColor: LINE }}>
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>Follow-ups needed</p>
-            <button onClick={() => setPage("canvass")} className="text-xs font-semibold px-2.5 py-1 rounded-lg" style={{ color: AMBER, background: `${AMBER}10` }}>Door Map</button>
-          </div>
-          {followUps.length === 0 ? (
-            <div className="flex flex-col items-center py-6 gap-2">
-              <Star size={28} style={{ color: GREEN }} />
-              <p className="text-sm" style={{ color: MUTED }}>No pending call-backs — nice!</p>
+        {/* Follow-ups + top clients */}
+        <div className="flex flex-col gap-4">
+          <div className="card p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>Follow-Ups</p>
+              <button onClick={() => setPage("canvass")} className="text-xs font-bold px-2.5 py-1 rounded-lg" style={{ color: AMBER, background: AMB_L }}>Door Map</button>
             </div>
-          ) : (
-            <div className="flex flex-col gap-1">
-              {followUps.map((p) => (
-                <div key={p.id} className="flex items-center gap-2.5 text-sm py-1.5 px-2 rounded-xl">
-                  <span className="animate-pulse-dot" style={{ width: 9, height: 9, borderRadius: 999, background: AMBER, display: "inline-block", flexShrink: 0 }} />
-                  <span style={{ color: INK }}>{p.label || "Untitled house"}</span>
-                  {p.notes && <span className="text-xs truncate" style={{ color: MUTED }}>{p.notes}</span>}
-                </div>
-              ))}
+            {followUps.length === 0 ? (
+              <div className="flex items-center gap-2 py-2">
+                <Star size={18} style={{ color: EMERALD }} />
+                <p className="text-sm" style={{ color: MUTED }}>No pending call-backs — great!</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {followUps.map((p) => (
+                  <div key={p.id} className="flex items-center gap-2.5 text-sm py-1.5 px-2 rounded-xl">
+                    <span className="anim-pulse-dot flex-shrink-0" style={{ width: 9, height: 9, borderRadius: 999, background: AMBER, display: "inline-block" }} />
+                    <span className="font-medium" style={{ color: INK }}>{p.label || "House"}</span>
+                    {p.notes && <span className="text-xs truncate" style={{ color: MUTED }}>{p.notes}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {topClients.length > 0 && (
+            <div className="card p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>Top Clients</p>
+                <Award size={15} style={{ color: AMBER }} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {topClients.map((c, i) => (
+                  <button key={c.id} onClick={() => onOpenClient(c.id)} className="flex items-center gap-2.5 text-sm py-1 card-lift rounded-xl px-1">
+                    <span className="text-xs font-black w-5 shrink-0 text-center" style={{ color: [AMBER, MUTED, "#B87333"][i] || MUTED, fontFamily: FONT_MONO }}>#{i + 1}</span>
+                    <Avatar name={c.name} size={26} />
+                    <span className="flex-1 min-w-0 truncate font-medium" style={{ color: INK }}>{c.name}</span>
+                    <span className="font-bold text-xs" style={{ color: EMERALD, fontFamily: FONT_MONO }}>{formatMoney(c.lifetime)}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
       </div>
 
+      {/* Van checklist */}
+      <div className="mb-4"><VanChecklist /></div>
+
+      {/* Action buttons */}
       <div className="flex flex-wrap gap-3">
-        <button onClick={onAdd} className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-bold text-white shadow-md" style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}><Plus size={16} /> Add client</button>
-        <button onClick={() => setPage("schedule")} className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold" style={{ background: "white", border: `1.5px solid ${LINE}`, color: INK }}><CalendarDays size={16} /> Schedule</button>
-        <button onClick={() => setPage("canvass")} className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold" style={{ background: "white", border: `1.5px solid ${LINE}`, color: INK }}><HomeIcon size={16} /> Door Map</button>
-        <button onClick={() => setPage("finance")} className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold" style={{ background: "white", border: `1.5px solid ${LINE}`, color: INK }}><BarChart2 size={16} /> Finance</button>
+        <button onClick={onAdd} className="btn-primary flex items-center gap-1.5"><Plus size={16} /> Add Client</button>
+        <button onClick={() => setPage("quotes")} className="btn-ghost flex items-center gap-1.5"><FileText size={15} /> New Quote</button>
+        <button onClick={() => setPage("schedule")} className="btn-ghost flex items-center gap-1.5"><CalendarDays size={15} /> Schedule</button>
+        <button onClick={() => setPage("canvass")} className="btn-ghost flex items-center gap-1.5"><HomeIcon size={15} /> Door Map</button>
       </div>
     </div>
   );
@@ -1190,6 +1455,53 @@ function PhotosSection({ clientId }) {
   );
 }
 
+/* ── Communication Templates ── */
+function CommTemplates({ client }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(null);
+
+  function copy(id, text) {
+    navigator.clipboard?.writeText(text).catch(() => {});
+    setCopied(id);
+    setTimeout(() => setCopied(null), 2200);
+  }
+
+  return (
+    <div className="mt-6 border-t pt-5" style={{ borderColor: LINE }}>
+      <button onClick={() => setOpen((o) => !o)} className="flex items-center justify-between w-full mb-2">
+        <div className="flex items-center gap-2">
+          <MessageSquare size={15} style={{ color: P }} />
+          <p className="text-xs font-bold tracking-wide uppercase" style={{ color: MUTED }}>Message Templates</p>
+        </div>
+        <ChevronRight size={14} style={{ color: MUTED, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.2s" }} />
+      </button>
+      {open && (
+        <div className="flex flex-col gap-2">
+          {COMM_TEMPLATES.map((t) => {
+            const Icon = t.icon;
+            const text = t.sms(client);
+            const isCopied = copied === t.id;
+            return (
+              <div key={t.id} className="rounded-2xl border p-3" style={{ borderColor: `${t.color}28`, background: `${t.color}06` }}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <Icon size={13} style={{ color: t.color }} />
+                    <p className="text-xs font-bold" style={{ color: t.color }}>{t.label}</p>
+                  </div>
+                  <button onClick={() => copy(t.id, text)} className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-lg" style={{ background: isCopied ? EM_L : `${t.color}12`, color: isCopied ? EMERALD : t.color }}>
+                    {isCopied ? <><CheckCircle2 size={11} /> Copied!</> : <><Copy size={11} /> Copy</>}
+                  </button>
+                </div>
+                <p className="text-xs leading-relaxed" style={{ color: INK_SOFT }}>{text}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------- Detail drawer ---------- */
 function DetailDrawer({ client, onClose, onEdit, onDelete, onMark, noteDraft, setNoteDraft, priceDraft, setPriceDraft }) {
   const due = dueText(daysUntil(client.nextServiceDate));
@@ -1262,8 +1574,11 @@ function DetailDrawer({ client, onClose, onEdit, onDelete, onMark, noteDraft, se
 
         <PhotosSection clientId={client.id} />
 
+        {/* Communication templates */}
+        <CommTemplates client={client} />
+
         <div className="mt-6">
-          <p className="text-xs font-medium mb-2" style={{ color: MUTED }}>SERVICE HISTORY</p>
+          <p className="text-xs font-bold mb-2 tracking-wide uppercase" style={{ color: MUTED }}>Service History</p>
           {(!client.history || client.history.length === 0) ? (
             <p className="text-sm" style={{ color: MUTED }}>No services logged yet.</p>
           ) : (
@@ -1494,11 +1809,256 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin, sh
   );
 }
 
+/* ---------- Quotes tab ---------- */
+function calcQuoteTotal(q) {
+  let t = 0;
+  if (q.services.includes("window")) {
+    t += q.windowCount * QUOTE_RATES.windowExt;
+    if (q.includeInterior) t += q.windowCount * QUOTE_RATES.windowInt;
+  }
+  if (q.services.includes("solar"))    t += QUOTE_RATES.solar;
+  if (q.services.includes("pressure")) t += QUOTE_RATES.pressure;
+  if (q.services.includes("gutter"))   t += QUOTE_RATES.gutter;
+  return t;
+}
+
+const QUOTE_STATUS_COLORS = { pending: AMBER, sent: P, accepted: EMERALD, declined: RED };
+
+function QuotesTab({ quotes, clients, persistQuotes, showToast, upsertClientAndPin }) {
+  const [draft, setDraft] = useState({ ...emptyQuote });
+  const [showBuilder, setShowBuilder] = useState(false);
+  const [rates, setRates] = useState(() => {
+    try { const r = localStorage.getItem("quoteRates"); return r ? JSON.parse(r) : QUOTE_RATES; } catch { return QUOTE_RATES; }
+  });
+  const [showRates, setShowRates] = useState(false);
+
+  function saveRates(newRates) {
+    setRates(newRates);
+    localStorage.setItem("quoteRates", JSON.stringify(newRates));
+  }
+
+  function calcTotal(q) {
+    let t = 0;
+    if (q.services.includes("window")) {
+      t += q.windowCount * rates.windowExt;
+      if (q.includeInterior) t += q.windowCount * rates.windowInt;
+    }
+    if (q.services.includes("solar"))    t += rates.solar;
+    if (q.services.includes("pressure")) t += rates.pressure;
+    if (q.services.includes("gutter"))   t += rates.gutter;
+    return t;
+  }
+
+  function saveQuote() {
+    const quote = { ...draft, id: genId(), createdAt: new Date().toISOString(), total: calcTotal(draft), status: "pending" };
+    persistQuotes([quote, ...quotes]);
+    showToast(`Quote saved · ${formatMoney(quote.total)}`);
+    setDraft({ ...emptyQuote });
+    setShowBuilder(false);
+  }
+
+  function bookFromQuote(q) {
+    upsertClientAndPin({ name: q.clientName, street: q.address, services: q.services, price: q.total, frequency: "one-time", nextServiceDate: "" }, null);
+    persistQuotes(quotes.map((x) => x.id === q.id ? { ...x, status: "accepted" } : x));
+    showToast("Booked! Client added to your roster.");
+  }
+
+  function updateStatus(id, status) {
+    persistQuotes(quotes.map((q) => q.id === id ? { ...q, status } : q));
+  }
+
+  function deleteQuote(id) {
+    persistQuotes(quotes.filter((q) => q.id !== id));
+  }
+
+  const total = draft.services.length ? calcTotal(draft) : 0;
+  const pendingRevenue = quotes.filter((q) => q.status === "pending" || q.status === "sent").reduce((s, q) => s + (q.total || 0), 0);
+  const acceptedRevenue = quotes.filter((q) => q.status === "accepted").reduce((s, q) => s + (q.total || 0), 0);
+
+  return (
+    <div className="anim-fade-up" style={{ fontFamily: FONT_BODY }}>
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
+        <StatCard icon={FileText}    label="Total Quotes"     value={quotes.length}               accent={VIOLET} sub="All-time" />
+        <StatCard icon={Clock}       label="Pending Revenue"  value={formatMoney(pendingRevenue)}  accent={AMBER}  sub="Quotes not yet accepted" />
+        <StatCard icon={CheckCircle2} label="Won Revenue"    value={formatMoney(acceptedRevenue)} accent={EMERALD} sub="Accepted quotes" />
+      </div>
+
+      {/* Pricing rates config */}
+      <div className="card p-4 mb-4">
+        <button onClick={() => setShowRates((s) => !s)} className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-2">
+            <Percent size={15} style={{ color: VIOLET }} />
+            <p className="text-sm font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>My Pricing Rates</p>
+          </div>
+          <ChevronRight size={15} style={{ color: MUTED, transform: showRates ? "rotate(90deg)" : "none", transition: "transform 0.2s" }} />
+        </button>
+        {showRates && (
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            {[
+              { key: "windowExt", label: "Window ext. ($/window)" },
+              { key: "windowInt", label: "Window int. add-on ($/window)" },
+              { key: "solar",     label: "Solar panels (flat $)" },
+              { key: "pressure",  label: "Pressure wash (flat $)" },
+              { key: "gutter",    label: "Gutter cleaning (flat $)" },
+            ].map(({ key, label }) => (
+              <Field key={key} label={label}>
+                <input type="number" value={rates[key]} onChange={(e) => saveRates({ ...rates, [key]: Number(e.target.value) || 0 })} style={inputStyle} min={0} />
+              </Field>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Quote builder */}
+      {!showBuilder ? (
+        <button onClick={() => setShowBuilder(true)} className="btn-primary flex items-center gap-2 mb-5 w-full justify-center py-3">
+          <Plus size={18} /> Build a New Quote
+        </button>
+      ) : (
+        <div className="card p-5 mb-5 anim-slide-up">
+          <div className="flex items-center justify-between mb-4">
+            <p className="font-black text-base" style={{ color: INK, fontFamily: FONT_HEAD }}>New Quote</p>
+            <button onClick={() => setShowBuilder(false)}><X size={16} /></button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            <Field label="Client name">
+              <input value={draft.clientName} onChange={(e) => setDraft((d) => ({ ...d, clientName: e.target.value }))} placeholder="e.g. John Smith" style={inputStyle} />
+            </Field>
+            <Field label="Property address">
+              <input value={draft.address} onChange={(e) => setDraft((d) => ({ ...d, address: e.target.value }))} placeholder="123 Main St" style={inputStyle} />
+            </Field>
+          </div>
+
+          <Field label="Property type">
+            <div className="flex flex-wrap gap-2 mt-1">
+              {PROP_TYPES.map((pt) => (
+                <button key={pt.id} type="button"
+                  onClick={() => setDraft((d) => ({ ...d, propType: pt.id, windowCount: pt.windows }))}
+                  className="rounded-xl border px-3 py-2 text-sm font-semibold transition-all"
+                  style={{ borderColor: draft.propType === pt.id ? P : LINE, background: draft.propType === pt.id ? P_LIGHT : "white", color: draft.propType === pt.id ? P : MUTED }}>
+                  {pt.label}
+                  <span className="block text-xs font-normal opacity-70">~{pt.windows} windows</span>
+                </button>
+              ))}
+            </div>
+          </Field>
+
+          <div className="mt-4">
+            <Field label="Services included">
+              <div className="flex flex-wrap gap-2 mt-1">
+                {SERVICES.map((s) => {
+                  const active = draft.services.includes(s.id);
+                  const Icon = s.icon;
+                  return (
+                    <button key={s.id} type="button"
+                      onClick={() => setDraft((d) => ({ ...d, services: active ? d.services.filter((x) => x !== s.id) : [...d.services, s.id] }))}
+                      className="flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-semibold transition-all"
+                      style={{ borderColor: active ? s.color : LINE, background: active ? `${s.color}14` : "white", color: active ? s.color : MUTED }}>
+                      <Icon size={14} />{s.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+          </div>
+
+          {draft.services.includes("window") && (
+            <div className="mt-4 grid grid-cols-2 gap-4">
+              <Field label="Window count">
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setDraft((d) => ({ ...d, windowCount: Math.max(1, d.windowCount - 1) }))}
+                    className="w-9 h-9 rounded-xl border flex items-center justify-center text-lg font-bold" style={{ borderColor: LINE, color: P }}>−</button>
+                  <span className="flex-1 text-center font-black text-xl" style={{ color: INK, fontFamily: FONT_MONO }}>{draft.windowCount}</span>
+                  <button type="button" onClick={() => setDraft((d) => ({ ...d, windowCount: d.windowCount + 1 }))}
+                    className="w-9 h-9 rounded-xl border flex items-center justify-center text-lg font-bold" style={{ borderColor: LINE, color: P }}>+</button>
+                </div>
+              </Field>
+              <Field label="Interior windows?">
+                <button type="button" onClick={() => setDraft((d) => ({ ...d, includeInterior: !d.includeInterior }))}
+                  className="flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all h-10"
+                  style={{ borderColor: draft.includeInterior ? P : LINE, background: draft.includeInterior ? P_LIGHT : "white", color: draft.includeInterior ? P : MUTED }}>
+                  {draft.includeInterior ? <CheckSquare size={15} /> : <Square size={15} />}
+                  +{formatMoney(draft.windowCount * rates.windowInt)}
+                </button>
+              </Field>
+            </div>
+          )}
+
+          <Field label="Notes (optional)">
+            <textarea value={draft.notes} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} rows={2} style={{ ...inputStyle, resize: "vertical", marginTop: 4 }} placeholder="Access notes, special requests…" />
+          </Field>
+
+          {/* Price breakdown */}
+          <div className="mt-4 rounded-2xl p-4" style={{ background: `linear-gradient(135deg, ${P}08, ${CYAN}06)`, border: `1px solid ${P}20` }}>
+            <p className="text-xs font-bold mb-2 uppercase tracking-wide" style={{ color: MUTED }}>Price Breakdown</p>
+            {draft.services.includes("window") && <>
+              <div className="flex justify-between text-sm mb-1"><span style={{ color: INK_SOFT }}>Window ext. ({draft.windowCount}×${rates.windowExt})</span><span className="font-mono font-bold" style={{ color: INK }}>{formatMoney(draft.windowCount * rates.windowExt)}</span></div>
+              {draft.includeInterior && <div className="flex justify-between text-sm mb-1"><span style={{ color: INK_SOFT }}>Interior add-on ({draft.windowCount}×${rates.windowInt})</span><span className="font-mono font-bold" style={{ color: INK }}>{formatMoney(draft.windowCount * rates.windowInt)}</span></div>}
+            </>}
+            {draft.services.includes("solar")    && <div className="flex justify-between text-sm mb-1"><span style={{ color: INK_SOFT }}>Solar panel cleaning</span><span className="font-mono font-bold" style={{ color: INK }}>{formatMoney(rates.solar)}</span></div>}
+            {draft.services.includes("pressure") && <div className="flex justify-between text-sm mb-1"><span style={{ color: INK_SOFT }}>Pressure washing</span><span className="font-mono font-bold" style={{ color: INK }}>{formatMoney(rates.pressure)}</span></div>}
+            {draft.services.includes("gutter")   && <div className="flex justify-between text-sm mb-1"><span style={{ color: INK_SOFT }}>Gutter cleaning</span><span className="font-mono font-bold" style={{ color: INK }}>{formatMoney(rates.gutter)}</span></div>}
+            <div className="flex justify-between items-center mt-3 pt-3 border-t" style={{ borderColor: `${P}20` }}>
+              <span className="font-black" style={{ color: INK, fontFamily: FONT_HEAD }}>Total</span>
+              <span className="text-2xl font-black" style={{ color: EMERALD, fontFamily: FONT_MONO }}>{formatMoney(total)}</span>
+            </div>
+          </div>
+
+          <div className="flex gap-2 mt-4">
+            <button onClick={() => setShowBuilder(false)} className="btn-ghost flex-1">Cancel</button>
+            <button onClick={saveQuote} disabled={!draft.services.length} className="btn-primary flex-1 flex items-center justify-center gap-1.5">
+              <CheckCircle2 size={15} /> Save Quote
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Saved quotes list */}
+      {quotes.length === 0 ? (
+        <div className="card flex flex-col items-center py-14 gap-3">
+          <div className="rounded-2xl p-4" style={{ background: VIO_L }}><FileText size={30} style={{ color: VIOLET }} /></div>
+          <p className="font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>No quotes yet</p>
+          <p className="text-sm text-center max-w-xs" style={{ color: MUTED }}>Build your first quote above — it only takes 30 seconds.</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {quotes.map((q) => (
+            <div key={q.id} className="card p-4">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div>
+                  <p className="font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>{q.clientName || "Unnamed client"}</p>
+                  {q.address && <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: MUTED }}><MapPin size={10} />{q.address}</p>}
+                </div>
+                <div className="flex flex-col items-end gap-1.5">
+                  <span className="text-xl font-black" style={{ color: EMERALD, fontFamily: FONT_MONO }}>{formatMoney(q.total)}</span>
+                  <span className="pill" style={{ background: `${QUOTE_STATUS_COLORS[q.status]}18`, color: QUOTE_STATUS_COLORS[q.status], border: `1px solid ${QUOTE_STATUS_COLORS[q.status]}30` }}>{q.status}</span>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1 mb-3">
+                {(q.services || []).map((s) => <ServiceBadge key={s} id={s} />)}
+                {q.notes && <span className="text-xs italic" style={{ color: MUTED }}>{q.notes}</span>}
+              </div>
+              <div className="flex items-center gap-2 pt-3 border-t" style={{ borderColor: LINE }}>
+                <span className="text-xs" style={{ color: MUTED }}>Created {formatDate(q.createdAt?.slice(0, 10))}</span>
+                <div className="flex gap-1.5 ml-auto flex-wrap justify-end">
+                  {q.status === "pending" && <button onClick={() => updateStatus(q.id, "sent")} className="text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1" style={{ background: P_LIGHT, color: P }}><Send size={11} /> Mark Sent</button>}
+                  {(q.status === "pending" || q.status === "sent") && <button onClick={() => bookFromQuote(q)} className="text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1" style={{ background: EM_L, color: EMERALD }}><CheckCircle2 size={11} /> Book</button>}
+                  {q.status !== "declined" && <button onClick={() => updateStatus(q.id, "declined")} className="text-xs font-bold px-2.5 py-1 rounded-lg" style={{ background: RED_L, color: RED }}>Decline</button>}
+                  <button onClick={() => deleteQuote(q.id)} className="text-xs font-bold px-2.5 py-1 rounded-lg" style={{ background: `${MUTED}12`, color: MUTED }}><Trash2 size={11} /></button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------- Finance tab ---------- */
 function FinanceTab({ clients }) {
-  const [goal, setGoal] = useState(() => {
-    try { return Number(localStorage.getItem("revenueGoal")) || 0; } catch { return 0; }
-  });
+  const [goal, setGoal] = useState(() => { try { return Number(localStorage.getItem("revenueGoal")) || 0; } catch { return 0; } });
   const [editingGoal, setEditingGoal] = useState(false);
   const [goalDraft, setGoalDraft] = useState("");
 
@@ -1527,55 +2087,59 @@ function FinanceTab({ clients }) {
     return Object.entries(groups).map(([month, v]) => ({ month, ...v })).sort((a, b) => (a.month < b.month ? 1 : -1)).slice(0, 6);
   }, [jobs]);
 
+  const serviceBreakdown = useMemo(() => {
+    const totals = {};
+    jobs.forEach((j) => (j.services || []).forEach((s) => { totals[s] = (totals[s] || 0) + (Number(j.price) || 0) / Math.max(1, (j.services || []).length); }));
+    return SERVICES.map((s) => ({ ...s, value: totals[s.id] || 0 })).filter((s) => s.value > 0);
+  }, [jobs]);
+
   if (clients.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center text-center py-16 rounded-2xl border border-dashed bg-white" style={{ borderColor: LINE }}>
-        <div className="rounded-2xl p-4 mb-3" style={{ background: `${GREEN}14` }}><DollarSign size={32} style={{ color: GREEN }} /></div>
-        <p className="font-bold text-lg" style={{ color: INK, fontFamily: FONT_HEAD }}>No revenue yet</p>
-        <p className="text-sm mt-1 max-w-xs" style={{ color: MUTED }}>Add clients and mark services complete to start tracking revenue here.</p>
+      <div className="card flex flex-col items-center py-16 text-center">
+        <div className="rounded-2xl p-4 mb-3" style={{ background: EM_L }}><DollarSign size={32} style={{ color: EMERALD }} /></div>
+        <p className="font-black text-lg" style={{ color: INK, fontFamily: FONT_HEAD }}>No revenue yet</p>
+        <p className="text-sm mt-1 max-w-xs" style={{ color: MUTED }}>Add clients and mark services complete to start tracking revenue.</p>
       </div>
     );
   }
 
   return (
-    <div className="animate-fade-in">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard icon={DollarSign} label="Total Revenue" value={formatMoney(totalRevenue)} accent={GREEN} sub="All-time" />
-        <StatCard icon={Briefcase} label="Jobs Done" value={jobsCompleted} accent={ACCENT} sub="All-time" />
-        <StatCard icon={TrendingUp} label="Avg. Job" value={formatMoney(avgJobValue)} accent={AMBER} sub="Per completed job" />
-        <StatCard icon={Zap} label="Projected" value={formatMoney(projected)} accent={PURPLE} sub="From scheduled clients" />
+    <div className="anim-fade-up" style={{ fontFamily: FONT_BODY }}>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5 stagger">
+        <StatCard icon={DollarSign}  label="Total Revenue" value={formatMoney(totalRevenue)} accent={EMERALD} sub="All-time, completed jobs" />
+        <StatCard icon={Briefcase}   label="Jobs Done"      value={jobsCompleted}             accent={P}       sub="All-time" />
+        <StatCard icon={TrendingUp}  label="Avg. Job"       value={formatMoney(avgJobValue)}  accent={AMBER}   sub="Per completed job" />
+        <StatCard icon={Zap}         label="Projected"      value={formatMoney(projected)}    accent={VIOLET}  sub="From scheduled clients" />
       </div>
 
       {/* Monthly goal */}
-      <div className="bg-white rounded-2xl border p-4 shadow-sm mb-5" style={{ borderColor: LINE }}>
-        <div className="flex items-center justify-between mb-1">
+      <div className="card p-5 mb-5">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <Target size={16} style={{ color: ACCENT }} />
-            <p className="text-sm font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>Monthly goal — {formatMonth(thisMonth)}</p>
+            <div className="rounded-xl p-2" style={{ background: `${P}18` }}><Target size={15} style={{ color: P }} /></div>
+            <p className="text-sm font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>Monthly Revenue Goal — {formatMonth(thisMonth)}</p>
           </div>
           {editingGoal ? (
             <div className="flex items-center gap-1.5">
-              <input autoFocus value={goalDraft} onChange={(e) => setGoalDraft(e.target.value)} placeholder="0" inputMode="decimal"
-                className="text-sm border rounded-lg px-2 py-1 w-24" style={{ borderColor: LINE }} />
-              <button onClick={() => { const v = Number(goalDraft) || 0; setGoal(v); localStorage.setItem("revenueGoal", v); setEditingGoal(false); }}
-                className="text-xs font-bold px-2.5 py-1 rounded-lg text-white" style={{ background: GREEN }}>Set</button>
-              <button onClick={() => setEditingGoal(false)} className="text-xs rounded-lg px-2 py-1" style={{ color: MUTED }}>Cancel</button>
+              <input autoFocus value={goalDraft} onChange={(e) => setGoalDraft(e.target.value)} placeholder="0" inputMode="decimal" className="text-sm border rounded-xl px-2.5 py-1.5 w-28" style={{ borderColor: LINE }} />
+              <button onClick={() => { const v = Number(goalDraft) || 0; setGoal(v); localStorage.setItem("revenueGoal", v); setEditingGoal(false); }} className="text-xs font-bold px-3 py-1.5 rounded-xl text-white" style={{ background: EMERALD }}>Set</button>
+              <button onClick={() => setEditingGoal(false)} className="text-xs rounded-xl px-2 py-1.5" style={{ color: MUTED }}>Cancel</button>
             </div>
           ) : (
-            <button onClick={() => { setGoalDraft(goal ? String(goal) : ""); setEditingGoal(true); }} className="text-xs font-semibold" style={{ color: ACCENT }}>
+            <button onClick={() => { setGoalDraft(goal ? String(goal) : ""); setEditingGoal(true); }} className="text-xs font-bold px-3 py-1.5 rounded-xl" style={{ color: P, background: P_LIGHT }}>
               {goal ? "Edit goal" : "Set goal"}
             </button>
           )}
         </div>
         {goal > 0 ? (
           <>
-            <div className="flex items-end justify-between mt-1 mb-1">
-              <span className="text-2xl font-black" style={{ color: INK, fontFamily: FONT_HEAD }}>{formatMoney(thisMonthRevenue)}</span>
-              <span className="text-sm font-semibold" style={{ color: MUTED }}>/ {formatMoney(goal)}</span>
+            <div className="flex items-baseline justify-between mt-2">
+              <span className="text-3xl font-black" style={{ color: INK, fontFamily: FONT_HEAD }}>{formatMoney(thisMonthRevenue)}</span>
+              <span className="text-base font-semibold" style={{ color: MUTED }}>/ {formatMoney(goal)}</span>
             </div>
-            <ProgressBar value={thisMonthRevenue} max={goal} color={thisMonthRevenue >= goal ? GREEN : ACCENT} />
-            <p className="text-xs mt-1.5" style={{ color: thisMonthRevenue >= goal ? GREEN : MUTED }}>
-              {thisMonthRevenue >= goal ? `🎉 Goal reached! +${formatMoney(thisMonthRevenue - goal)} over` : `${formatMoney(goal - thisMonthRevenue)} to go`}
+            <ProgressBar value={thisMonthRevenue} max={goal} color={thisMonthRevenue >= goal ? EMERALD : P} height={10} />
+            <p className="text-xs font-bold mt-2" style={{ color: thisMonthRevenue >= goal ? EMERALD : MUTED }}>
+              {thisMonthRevenue >= goal ? `Goal reached! +${formatMoney(thisMonthRevenue - goal)} over target` : `${formatMoney(goal - thisMonthRevenue)} to reach your goal`}
             </p>
           </>
         ) : (
@@ -1583,20 +2147,21 @@ function FinanceTab({ clients }) {
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="bg-white rounded-2xl border p-4 shadow-sm" style={{ borderColor: LINE }}>
-          <p className="text-sm font-bold mb-1" style={{ color: INK, fontFamily: FONT_HEAD }}>Revenue by month</p>
-          {monthly.length === 0 ? <p className="text-sm" style={{ color: MUTED }}>No completed jobs yet.</p> : (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+        {/* Revenue chart */}
+        <div className="card p-5">
+          <p className="text-sm font-bold mb-1" style={{ color: INK, fontFamily: FONT_HEAD }}>Revenue by Month</p>
+          {monthly.length === 0 ? <p className="text-sm mt-2" style={{ color: MUTED }}>No completed jobs yet.</p> : (
             <>
               <MiniBarChart data={monthly} />
               <div className="flex flex-col gap-1.5 mt-3">
                 {monthly.map((m) => (
                   <div key={m.month} className="flex items-center justify-between text-sm py-1.5 border-b last:border-0" style={{ borderColor: LINE }}>
-                    <span style={{ color: INK_SOFT }}>{formatMonth(m.month)}</span>
-                    <span className="flex items-center gap-3">
-                      <span className="text-xs px-2 py-0.5 rounded-full" style={{ color: MUTED, background: BG }}>{m.count} job{m.count !== 1 ? "s" : ""}</span>
-                      <span className="font-bold" style={{ color: GREEN, fontFamily: FONT_MONO }}>{formatMoney(m.revenue)}</span>
-                    </span>
+                    <span className="font-medium" style={{ color: INK_SOFT }}>{formatMonth(m.month)}</span>
+                    <div className="flex items-center gap-2.5">
+                      <span className="pill" style={{ background: BG, color: MUTED }}>{m.count} job{m.count !== 1 ? "s" : ""}</span>
+                      <span className="font-bold" style={{ color: EMERALD, fontFamily: FONT_MONO }}>{formatMoney(m.revenue)}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1604,24 +2169,54 @@ function FinanceTab({ clients }) {
           )}
         </div>
 
-        <div className="bg-white rounded-2xl border p-4 shadow-sm" style={{ borderColor: LINE }}>
-          <p className="text-sm font-bold mb-3" style={{ color: INK, fontFamily: FONT_HEAD }}>Recent jobs</p>
-          {jobs.length === 0 ? <p className="text-sm" style={{ color: MUTED }}>No completed jobs yet.</p> : (
-            <div className="flex flex-col gap-3">
-              {jobs.slice(0, 8).map((j, i) => (
-                <div key={i} className="flex items-start justify-between text-sm py-2 border-b last:border-0" style={{ borderColor: LINE }}>
-                  <div>
-                    <p className="font-semibold" style={{ color: INK }}>{j.clientName}</p>
-                    <p className="text-xs" style={{ color: MUTED }}>{formatDate(j.date)}</p>
-                    <div className="flex gap-1 mt-1">{(j.services || []).map((s) => <ServiceBadge key={s} id={s} />)}</div>
-                    {j.notes && <p className="text-xs mt-0.5 italic" style={{ color: MUTED }}>{j.notes}</p>}
-                  </div>
-                  <span className="font-bold shrink-0 text-base" style={{ color: GREEN, fontFamily: FONT_MONO }}>{formatMoney(j.price)}</span>
-                </div>
-              ))}
+        {/* Service breakdown */}
+        <div className="card p-5">
+          <p className="text-sm font-bold mb-4" style={{ color: INK, fontFamily: FONT_HEAD }}>Revenue by Service</p>
+          {serviceBreakdown.length === 0 ? <p className="text-sm" style={{ color: MUTED }}>No data yet.</p> : (
+            <div className="flex items-center gap-5">
+              <DonutChart segments={serviceBreakdown.map((s) => ({ value: s.value, color: s.color }))} size={96} />
+              <div className="flex flex-col gap-2 flex-1">
+                {serviceBreakdown.map((s) => {
+                  const Icon = s.icon;
+                  const pct = totalRevenue ? Math.round((s.value / totalRevenue) * 100) : 0;
+                  return (
+                    <div key={s.id}>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <div className="flex items-center gap-1.5"><Icon size={11} style={{ color: s.color }} /><span className="font-semibold" style={{ color: INK }}>{s.label}</span></div>
+                        <span className="font-bold" style={{ color: s.color, fontFamily: FONT_MONO }}>{formatMoney(s.value)}</span>
+                      </div>
+                      <ProgressBar value={s.value} max={totalRevenue} color={s.color} height={5} />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
+      </div>
+
+      {/* Recent jobs */}
+      <div className="card p-5">
+        <p className="text-sm font-bold mb-4" style={{ color: INK, fontFamily: FONT_HEAD }}>Recent Jobs</p>
+        {jobs.length === 0 ? <p className="text-sm" style={{ color: MUTED }}>No completed jobs yet.</p> : (
+          <div className="flex flex-col gap-0">
+            {jobs.slice(0, 10).map((j, i) => (
+              <div key={i} className="flex items-center justify-between py-3 border-b last:border-0" style={{ borderColor: LINE }}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <Avatar name={j.clientName} size={32} />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm truncate" style={{ color: INK }}>{j.clientName}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-xs" style={{ color: MUTED, fontFamily: FONT_MONO }}>{formatDate(j.date)}</p>
+                      <div className="flex gap-1">{(j.services || []).map((s) => <ServiceBadge key={s} id={s} />)}</div>
+                    </div>
+                  </div>
+                </div>
+                <span className="font-black text-base shrink-0 ml-3" style={{ color: EMERALD, fontFamily: FONT_MONO }}>{formatMoney(j.price)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
