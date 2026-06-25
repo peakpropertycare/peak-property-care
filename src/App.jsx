@@ -3,40 +3,15 @@ import { createPortal } from "react-dom";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
-  Plus,
-  Search,
-  X,
-  Phone,
-  Mail,
-  MapPin,
-  Droplets,
-  Sun,
-  Sparkles,
-  Trash2,
-  Pencil,
-  CheckCircle2,
-  Clock,
-  AlertTriangle,
-  Loader2,
-  ClipboardList,
-  Users,
-  DollarSign,
-  TrendingUp,
-  Briefcase,
-  Home as HomeIcon,
-  ChevronRight,
-  ChevronLeft,
-  CalendarDays,
-  Info,
-  LayoutDashboard,
-  Navigation,
-  Tag,
-  Search as SearchIcon,
+  Plus, Search, X, Phone, Mail, MapPin, Droplets, Sun, Sparkles,
+  Trash2, Pencil, CheckCircle2, Clock, AlertTriangle, Loader2,
+  ClipboardList, Users, DollarSign, TrendingUp, Briefcase,
+  Home as HomeIcon, ChevronRight, ChevronLeft, CalendarDays,
+  Info, LayoutDashboard, Navigation, Tag, Search as SearchIcon,
+  Zap, Target, Award, BarChart2, Star, Bell, ArrowUpRight,
 } from "lucide-react";
 import { storage } from "./lib/storage";
 import logo from "./assets/logo.png";
-
-const TOMTOM_KEY = import.meta.env.VITE_TOMTOM_API_KEY;
 
 /* ---------- design tokens ---------- */
 const ACCENT = "#0048CD";
@@ -334,32 +309,94 @@ function Logo() {
   );
 }
 
-function StatCard({ icon: Icon, label, value, accent, sub }) {
+/* ── Toast ── */
+function ToastContainer({ toasts }) {
+  if (!toasts.length) return null;
+  return createPortal(
+    <div className="fixed top-4 right-4 flex flex-col gap-2" style={{ zIndex: 99999 }}>
+      {toasts.map((t) => (
+        <div key={t.id} className="animate-toast flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-xl text-sm font-semibold text-white"
+          style={{ background: t.type === "error" ? RED : t.type === "warning" ? AMBER : GREEN, minWidth: 220 }}>
+          {t.type === "error" ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}
+          {t.message}
+        </div>
+      ))}
+    </div>,
+    document.body
+  );
+}
+
+/* ── StatCard ── */
+function StatCard({ icon: Icon, label, value, accent, sub, trend }) {
   return (
-    <div className="bg-white rounded-xl border p-4 shadow-sm" style={{ borderColor: LINE }}>
-      <div className="flex items-center gap-2 mb-2">
-        <div className="rounded-lg p-1.5" style={{ background: `${accent}16` }}><Icon size={15} style={{ color: accent }} /></div>
-        <span className="text-xs font-medium" style={{ color: MUTED }}>{label}</span>
+    <div className="hover-lift relative overflow-hidden rounded-2xl p-4"
+      style={{ background: `linear-gradient(135deg, #fff 0%, ${accent}0C 100%)`, border: `1px solid ${accent}28`, boxShadow: `0 4px 20px ${accent}10` }}>
+      <div className="absolute -top-3 -right-3 opacity-[0.06]" style={{ color: accent }}><Icon size={88} /></div>
+      <div className="relative">
+        <div className="flex items-center justify-between mb-3">
+          <div className="rounded-xl p-2" style={{ background: `${accent}18` }}><Icon size={17} style={{ color: accent }} /></div>
+          {trend !== undefined && (
+            <span className="flex items-center gap-0.5 text-xs font-bold" style={{ color: trend >= 0 ? GREEN : RED }}>
+              <ArrowUpRight size={13} style={{ transform: trend < 0 ? "rotate(90deg)" : "none" }} />{Math.abs(trend)}%
+            </span>
+          )}
+        </div>
+        <p className="text-2xl font-black tracking-tight animate-count" style={{ color: INK, fontFamily: FONT_HEAD }}>{value}</p>
+        <p className="text-xs font-bold mt-0.5" style={{ color: accent }}>{label}</p>
+        {sub && <p className="text-xs mt-0.5" style={{ color: MUTED }}>{sub}</p>}
       </div>
-      <p className="text-2xl font-extrabold" style={{ color: INK, fontFamily: FONT_HEAD }}>{value}</p>
-      {sub && <p className="text-xs mt-1" style={{ color: MUTED }}>{sub}</p>}
+    </div>
+  );
+}
+
+/* ── Mini bar chart ── */
+function MiniBarChart({ data }) {
+  if (!data.length) return null;
+  const max = Math.max(...data.map((d) => d.revenue), 1);
+  return (
+    <div className="flex items-end gap-1.5 h-16 mt-3">
+      {data.slice().reverse().map((item) => {
+        const pct = Math.max(6, (item.revenue / max) * 100);
+        return (
+          <div key={item.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
+            <div className="w-full rounded-t-md bar-fill"
+              style={{ height: `${pct}%`, background: `linear-gradient(to top, ${ACCENT}, ${ACCENT_LIGHT})` }} />
+            <span style={{ color: MUTED, fontSize: "0.58rem", fontFamily: FONT_MONO }}>{item.month.slice(5)}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Progress bar ── */
+function ProgressBar({ value, max, color }) {
+  const pct = max ? Math.min(100, (value / max) * 100) : 0;
+  return (
+    <div className="h-2 rounded-full overflow-hidden mt-2" style={{ background: `${color}18` }}>
+      <div className="h-full rounded-full progress-fill" style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${color}, ${color}99)` }} />
     </div>
   );
 }
 
 function TabHero({ icons, from, to, title, subtitle, action }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl mb-5 px-5 py-6" style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}>
-      <div className="absolute inset-0 flex items-center justify-end pr-2" style={{ opacity: 0.16 }}>
+    <div className="relative overflow-hidden rounded-2xl mb-5 px-5 py-6 shadow-lg animate-fade-in" style={{ background: `linear-gradient(135deg, ${from} 0%, ${to} 100%)` }}>
+      {/* Radial glow */}
+      <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at top right, rgba(255,255,255,0.12) 0%, transparent 60%)" }} />
+      {/* Decorative icons */}
+      <div className="absolute inset-0 flex items-center justify-end pr-4 gap-0" style={{ opacity: 0.12 }}>
         {icons.map((Icon, i) => (
-          <Icon key={i} size={78 - i * 16} color="white" style={{ transform: `rotate(${(i - 1) * 10}deg)`, marginLeft: -14 }} />
+          <Icon key={i} size={90 - i * 18} color="white" style={{ transform: `rotate(${(i - 1) * 12}deg)`, marginLeft: -18 }} />
         ))}
       </div>
-      <img src={logo} alt="" style={{ position: "absolute", left: 10, bottom: -14, width: 64, opacity: 0.14 }} />
+      <img src={logo} alt="" style={{ position: "absolute", left: 12, bottom: -16, width: 72, opacity: 0.1 }} />
+      {/* Dot grid */}
+      <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.12) 1px, transparent 1px)", backgroundSize: "24px 24px", opacity: 0.4 }} />
       <div className="relative z-10 flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-white text-xl font-extrabold" style={{ fontFamily: FONT_HEAD }}>{title}</h1>
-          {subtitle && <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.85)" }}>{subtitle}</p>}
+          <h1 className="text-white text-xl font-black tracking-tight" style={{ fontFamily: FONT_HEAD }}>{title}</h1>
+          {subtitle && <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.8)" }}>{subtitle}</p>}
         </div>
         {action}
       </div>
@@ -523,6 +560,13 @@ export default function App() {
   const [saveState, setSaveState] = useState("idle");
   const [page, setPage] = useState("dashboard");
   const [scheduleDate, setScheduleDate] = useState(todayStr());
+  const [toasts, setToasts] = useState([]);
+
+  function showToast(message, type = "success") {
+    const id = genId();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
+  }
 
   const [query, setQuery] = useState("");
   const [serviceFilter, setServiceFilter] = useState(null);
@@ -560,11 +604,12 @@ export default function App() {
     return () => document.head.removeChild(link);
   }, []);
 
-  async function persist(next) {
+  async function persist(next, toast) {
     setClients(next);
     setSaveState("saving");
     const ok = await storage.set("clients", JSON.stringify(next));
     setSaveState(ok ? "idle" : "error");
+    if (toast) showToast(toast, ok ? "success" : "error");
   }
   async function persistPins(next) {
     setPins(next);
@@ -621,9 +666,10 @@ export default function App() {
     const id = upsertClientAndPin(info, null);
     setModal(null);
     setSelectedId(id);
+    showToast(modal.mode === "edit" ? "Client updated" : modal.mode === "book" ? "Appointment booked" : "Client added");
   }
   function deleteClient(id) {
-    persist(clients.filter((c) => c.id !== id));
+    persist(clients.filter((c) => c.id !== id), null);
     persistPins(pins.map((p) => (p.clientId === id ? { ...p, clientId: null } : p)));
     if (selectedId === id) setSelectedId(null);
     setConfirmDeleteId(null);
@@ -639,7 +685,7 @@ export default function App() {
     const entry = { date: today, services: client.services, notes: note, price: Number(price) || 0 };
     const nextDate = client.frequency === "one-time" ? null : addInterval(today, client.frequency);
     const updated = { ...client, history: [entry, ...(client.history || [])], nextServiceDate: nextDate, nextServiceTime: nextDate ? client.nextServiceTime : "" };
-    persist(clients.map((c) => (c.id === client.id ? updated : c)));
+    persist(clients.map((c) => (c.id === client.id ? updated : c)), `Job logged${price ? ` · ${formatMoney(price)}` : ""}`);
     const linkedPin = pins.find((p) => p.clientId === client.id);
     if (linkedPin) persistPins(pins.map((p) => (p.id === linkedPin.id ? { ...p, statusId: "completed", updatedAt: new Date().toISOString() } : p)));
     setNoteDrafts((d) => ({ ...d, [client.id]: "" }));
@@ -673,27 +719,41 @@ export default function App() {
 
   return (
     <div style={{ background: BG, fontFamily: FONT_BODY, minHeight: "100vh" }} className="text-slate-800 flex flex-col">
-      <header style={{ background: INK }} className="px-4 sm:px-6 py-3.5 flex items-center justify-between shrink-0">
+      <header style={{ background: `linear-gradient(135deg, ${INK} 0%, #0B1F3E 100%)`, borderBottom: `1px solid rgba(255,255,255,0.06)` }} className="px-4 sm:px-6 py-3.5 flex items-center justify-between shrink-0">
         <Logo />
-        <span className="hidden sm:flex items-center gap-1 text-xs" style={{ color: ACCENT_LIGHT, fontFamily: FONT_MONO }}>
-          {saveState === "saving" && (<><Loader2 size={12} className="animate-spin" /> saving</>)}
-          {saveState === "error" && (<><AlertTriangle size={12} /> save failed</>)}
-        </span>
+        <div className="flex items-center gap-3">
+          {saveState === "saving" && (
+            <span className="flex items-center gap-1 text-xs" style={{ color: ACCENT_LIGHT, fontFamily: FONT_MONO }}>
+              <Loader2 size={11} className="animate-spin" /> saving…
+            </span>
+          )}
+          {saveState === "error" && (
+            <span className="flex items-center gap-1 text-xs" style={{ color: RED, fontFamily: FONT_MONO }}>
+              <AlertTriangle size={11} /> save failed
+            </span>
+          )}
+        </div>
       </header>
-      <div style={{ height: 4, backgroundImage: `repeating-linear-gradient(90deg, ${ACCENT} 0px, ${ACCENT} 1px, transparent 1px, transparent 22px)`, opacity: 0.55 }} />
+      <div style={{ height: 3, background: `linear-gradient(90deg, ${ACCENT}, #00A3FF, ${GREEN}, ${ACCENT})`, backgroundSize: "200% 100%", animation: "shimmer 3s linear infinite" }} />
 
       <div className="flex flex-1 min-h-0">
-        <aside className="hidden sm:flex flex-col w-56 shrink-0 py-5 px-3 gap-1" style={{ background: "#0B1830" }}>
+        <aside className="hidden sm:flex flex-col w-56 shrink-0 py-5 px-3 gap-1 border-r" style={{ background: "#07101F", borderColor: "rgba(255,255,255,0.05)" }}>
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const active = page === item.id;
             return (
-              <button key={item.id} onClick={() => setPage(item.id)} className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-left" style={{ background: active ? `${ACCENT}30` : "transparent", color: active ? "white" : "#8FA2C0", fontFamily: FONT_HEAD, borderLeft: active ? `3px solid ${ACCENT}` : "3px solid transparent" }}>
+              <button key={item.id} onClick={() => setPage(item.id)}
+                className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold text-left transition-all"
+                style={{ background: active ? `linear-gradient(135deg, ${ACCENT}40, ${ACCENT}20)` : "transparent", color: active ? "white" : "#6B839A", fontFamily: FONT_HEAD, borderLeft: active ? `3px solid ${ACCENT}` : "3px solid transparent", marginLeft: active ? 0 : 0 }}>
                 <Icon size={16} />
                 {item.label}
               </button>
             );
           })}
+          <div className="mt-auto pt-4 border-t mx-1" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+            <p className="text-xs px-3" style={{ color: "#3D5268", fontFamily: FONT_MONO }}>Peak Property Care</p>
+            <p className="text-xs px-3" style={{ color: "#2A3D52" }}>v1.0</p>
+          </div>
         </aside>
 
         <main className="flex-1 min-w-0 overflow-y-auto px-4 sm:px-8 py-6 pb-24 sm:pb-10">
@@ -726,7 +786,7 @@ export default function App() {
               {page === "canvass" && (
                 <>
                   <TabHero icons={[HomeIcon, MapPin]} from={GREEN} to={INK} title="Door Map" subtitle="A real, live map — tap to drop a pin on any house." />
-                  <DoorMap pins={pins} clients={clients} persistPins={persistPins} upsertClientAndPin={upsertClientAndPin} deletePin={deletePin} />
+                  <DoorMap pins={pins} clients={clients} persistPins={persistPins} upsertClientAndPin={upsertClientAndPin} deletePin={deletePin} showToast={showToast} onOpenClient={(id) => { setSelectedId(id); setPage("clients"); }} />
                 </>
               )}
               {page === "finance" && (
@@ -771,18 +831,24 @@ export default function App() {
         <ClientModal form={form} setForm={setForm} mode={modal.mode} clients={clients} onSubmit={submitModal} onClose={() => setModal(null)} onDelete={modal.mode === "edit" ? () => { setConfirmDeleteId(modal.clientId); setModal(null); } : null} />
       )}
 
-      {confirmDeleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-xl p-6 max-w-sm w-full">
-            <p className="font-medium mb-1" style={{ color: INK }}>Delete this client?</p>
+      {confirmDeleteId && createPortal(
+        <div className="fixed inset-0 flex items-center justify-center bg-black/40 px-4" style={{ zIndex: 9999 }}>
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-slide-up">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="rounded-full p-2" style={{ background: `${RED}18` }}><AlertTriangle size={20} style={{ color: RED }} /></div>
+              <p className="font-bold text-base" style={{ color: INK }}>Delete this client?</p>
+            </div>
             <p className="text-sm mb-5" style={{ color: MUTED }}>This removes their info, history, and photos. Any map pin stays but unlinks. This can't be undone.</p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setConfirmDeleteId(null)} className="px-3 py-2 text-sm rounded-lg border" style={{ borderColor: LINE }}>Cancel</button>
-              <button onClick={() => deleteClient(confirmDeleteId)} className="px-3 py-2 text-sm rounded-lg text-white" style={{ background: RED }}>Delete</button>
+              <button onClick={() => setConfirmDeleteId(null)} className="px-4 py-2 text-sm rounded-xl border font-medium" style={{ borderColor: LINE }}>Cancel</button>
+              <button onClick={() => { deleteClient(confirmDeleteId); showToast("Client deleted", "error"); }} className="px-4 py-2 text-sm rounded-xl text-white font-medium" style={{ background: RED }}>Delete</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
+
+      <ToastContainer toasts={toasts} />
     </div>
   );
 }
@@ -792,57 +858,90 @@ function DashboardTab({ clients, pins, onOpenClient, setPage, onAdd }) {
   const today = todayStr();
   const todays = clients.filter((c) => c.nextServiceDate === today).sort((a, b) => (a.nextServiceTime || "").localeCompare(b.nextServiceTime || ""));
   const followUps = pins.filter((p) => p.statusId === "callback").slice(0, 5);
+  const overdue = clients.filter((c) => c.nextServiceDate && daysUntil(c.nextServiceDate) < 0);
   const thisMonth = today.slice(0, 7);
+  const lastMonth = (() => { const d = new Date(today + "T00:00:00"); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 7); })();
   const monthRevenue = clients.reduce((sum, c) => sum + (c.history || []).filter((h) => h.date.slice(0, 7) === thisMonth).reduce((s, h) => s + (Number(h.price) || 0), 0), 0);
+  const lastMonthRevenue = clients.reduce((sum, c) => sum + (c.history || []).filter((h) => h.date.slice(0, 7) === lastMonth).reduce((s, h) => s + (Number(h.price) || 0), 0), 0);
+  const revTrend = lastMonthRevenue ? Math.round(((monthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100) : undefined;
   const upcomingCount = clients.filter((c) => c.nextServiceDate && daysUntil(c.nextServiceDate) >= 0).length;
+  const totalPins = pins.length;
+  const appointmentPins = pins.filter((p) => p.statusId === "appointment" || p.statusId === "completed").length;
+  const convRate = totalPins ? Math.round((appointmentPins / totalPins) * 100) : 0;
 
   return (
-    <div>
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+    <div className="animate-fade-in">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard icon={CalendarDays} label="Today's Jobs" value={todays.length} accent={ACCENT} sub={formatDate(today)} />
-        <StatCard icon={ClipboardList} label="Upcoming Appointments" value={upcomingCount} accent={AMBER} sub="Scheduled, not yet done" />
-        <StatCard icon={DollarSign} label="Revenue This Month" value={formatMoney(monthRevenue)} accent={GREEN} sub="From completed jobs" />
+        <StatCard icon={ClipboardList} label="Upcoming" value={upcomingCount} accent={AMBER} sub="Scheduled jobs" />
+        <StatCard icon={DollarSign} label="This Month" value={formatMoney(monthRevenue)} accent={GREEN} sub="Completed jobs" trend={revTrend} />
+        <StatCard icon={Target} label="Canvass Rate" value={`${convRate}%`} accent={PURPLE} sub={`${appointmentPins}/${totalPins} doors converted`} />
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="bg-white rounded-xl border p-4 shadow-sm" style={{ borderColor: LINE }}>
+
+      {overdue.length > 0 && (
+        <div className="rounded-2xl border px-4 py-3 mb-5 flex items-center gap-3" style={{ background: `${RED}0A`, borderColor: `${RED}30` }}>
+          <AlertTriangle size={16} style={{ color: RED, flexShrink: 0 }} />
+          <p className="text-sm font-medium" style={{ color: RED }}>
+            {overdue.length} overdue appointment{overdue.length > 1 ? "s" : ""} — {overdue.slice(0, 2).map((c) => c.name || "Unnamed").join(", ")}{overdue.length > 2 ? ` +${overdue.length - 2} more` : ""}
+          </p>
+          <button onClick={() => setPage("schedule")} className="ml-auto text-xs font-bold shrink-0" style={{ color: RED }}>View →</button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+        <div className="bg-white rounded-2xl border p-4 shadow-sm" style={{ borderColor: LINE }}>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold" style={{ color: INK, fontFamily: FONT_HEAD }}>Today's route</p>
-            <button onClick={() => setPage("schedule")} className="text-xs font-medium" style={{ color: ACCENT }}>View all</button>
+            <p className="text-sm font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>Today's route</p>
+            <button onClick={() => setPage("schedule")} className="text-xs font-semibold px-2.5 py-1 rounded-lg" style={{ color: ACCENT, background: `${ACCENT}10` }}>View schedule</button>
           </div>
-          {todays.length === 0 ? <p className="text-sm" style={{ color: MUTED }}>Nothing booked for today.</p> : (
-            <div className="flex flex-col gap-2">
+          {todays.length === 0 ? (
+            <div className="flex flex-col items-center py-6 gap-2">
+              <CalendarDays size={28} style={{ color: ACCENT_LIGHT }} />
+              <p className="text-sm text-center" style={{ color: MUTED }}>Nothing booked today — <button onClick={() => setPage("schedule")} style={{ color: ACCENT }}>add an appointment</button></p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1">
               {todays.map((c, i) => (
-                <button key={c.id} onClick={() => onOpenClient(c.id)} className="flex items-center gap-3 text-left text-sm py-1.5 border-b last:border-0" style={{ borderColor: LINE }}>
-                  <span className="text-xs font-mono shrink-0" style={{ color: MUTED, width: 18 }}>{i + 1}</span>
-                  <Avatar name={c.name} size={28} />
-                  <span className="flex-1 min-w-0 truncate" style={{ color: INK }}>{c.name || "Unnamed client"}</span>
-                  <span style={{ color: MUTED }} className="text-xs font-mono shrink-0">{c.nextServiceTime ? formatTime(c.nextServiceTime) : "No time"}</span>
+                <button key={c.id} onClick={() => onOpenClient(c.id)} className="hover-lift flex items-center gap-3 text-left text-sm py-2 px-2 rounded-xl border border-transparent hover:border-current" style={{ borderColor: "transparent" }}>
+                  <span className="text-xs font-bold shrink-0 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: `${ACCENT}15`, color: ACCENT, fontFamily: FONT_MONO }}>{i + 1}</span>
+                  <Avatar name={c.name} size={30} />
+                  <span className="flex-1 min-w-0 truncate font-medium" style={{ color: INK }}>{c.name || "Unnamed client"}</span>
+                  <span className="text-xs font-mono shrink-0 px-2 py-0.5 rounded-full" style={{ background: `${ACCENT}10`, color: ACCENT }}>{c.nextServiceTime ? formatTime(c.nextServiceTime) : "—"}</span>
                 </button>
               ))}
             </div>
           )}
         </div>
-        <div className="bg-white rounded-xl border p-4 shadow-sm" style={{ borderColor: LINE }}>
+
+        <div className="bg-white rounded-2xl border p-4 shadow-sm" style={{ borderColor: LINE }}>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold" style={{ color: INK, fontFamily: FONT_HEAD }}>Needs a follow-up</p>
-            <button onClick={() => setPage("canvass")} className="text-xs font-medium" style={{ color: ACCENT }}>Open Door Map</button>
+            <p className="text-sm font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>Follow-ups needed</p>
+            <button onClick={() => setPage("canvass")} className="text-xs font-semibold px-2.5 py-1 rounded-lg" style={{ color: AMBER, background: `${AMBER}10` }}>Door Map</button>
           </div>
-          {followUps.length === 0 ? <p className="text-sm" style={{ color: MUTED }}>No pending call-backs right now.</p> : (
-            <div className="flex flex-col gap-2">
+          {followUps.length === 0 ? (
+            <div className="flex flex-col items-center py-6 gap-2">
+              <Star size={28} style={{ color: GREEN }} />
+              <p className="text-sm" style={{ color: MUTED }}>No pending call-backs — nice!</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1">
               {followUps.map((p) => (
-                <div key={p.id} className="flex items-center gap-2 text-sm py-1.5 border-b last:border-0" style={{ borderColor: LINE }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 999, background: AMBER, display: "inline-block" }} />
-                  <span style={{ color: INK }}>{p.label}</span>
+                <div key={p.id} className="flex items-center gap-2.5 text-sm py-1.5 px-2 rounded-xl">
+                  <span className="animate-pulse-dot" style={{ width: 9, height: 9, borderRadius: 999, background: AMBER, display: "inline-block", flexShrink: 0 }} />
+                  <span style={{ color: INK }}>{p.label || "Untitled house"}</span>
+                  {p.notes && <span className="text-xs truncate" style={{ color: MUTED }}>{p.notes}</span>}
                 </div>
               ))}
             </div>
           )}
         </div>
       </div>
-      <div className="flex flex-wrap gap-3 mt-5">
-        <button onClick={onAdd} className="flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-medium text-white" style={{ background: ACCENT }}><Plus size={16} /> Add client</button>
-        <button onClick={() => setPage("schedule")} className="flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-medium" style={{ background: "white", border: `1px solid ${LINE}`, color: INK }}><CalendarDays size={16} /> View schedule</button>
-        <button onClick={() => setPage("canvass")} className="flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-medium" style={{ background: "white", border: `1px solid ${LINE}`, color: INK }}><HomeIcon size={16} /> Open Door Map</button>
+
+      <div className="flex flex-wrap gap-3">
+        <button onClick={onAdd} className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-bold text-white shadow-md" style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}><Plus size={16} /> Add client</button>
+        <button onClick={() => setPage("schedule")} className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold" style={{ background: "white", border: `1.5px solid ${LINE}`, color: INK }}><CalendarDays size={16} /> Schedule</button>
+        <button onClick={() => setPage("canvass")} className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold" style={{ background: "white", border: `1.5px solid ${LINE}`, color: INK }}><HomeIcon size={16} /> Door Map</button>
+        <button onClick={() => setPage("finance")} className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold" style={{ background: "white", border: `1.5px solid ${LINE}`, color: INK }}><BarChart2 size={16} /> Finance</button>
       </div>
     </div>
   );
@@ -867,23 +966,29 @@ function ClientsTab({ clients, allCount, query, setQuery, serviceFilter, setServ
           {clients.map((c) => {
             const due = dueText(daysUntil(c.nextServiceDate));
             const addr = formatAddress(c);
+            const lifetime = (c.history || []).reduce((s, h) => s + (Number(h.price) || 0), 0);
             return (
-              <button key={c.id} onClick={() => onOpen(c.id)} className="text-left bg-white rounded-xl border p-4 shadow-sm hover:shadow-md transition-shadow" style={{ borderColor: LINE }}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Avatar name={c.name} size={32} />
-                    <p className="font-semibold truncate" style={{ color: INK, fontFamily: FONT_HEAD }}>{c.name || "Unnamed client"}</p>
+              <button key={c.id} onClick={() => onOpen(c.id)} className="hover-lift text-left bg-white rounded-2xl border p-4 shadow-sm" style={{ borderColor: LINE }}>
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Avatar name={c.name} size={36} />
+                    <div className="min-w-0">
+                      <p className="font-bold truncate" style={{ color: INK, fontFamily: FONT_HEAD }}>{c.name || "Unnamed client"}</p>
+                      {addr && <p className="flex items-center gap-1 text-xs truncate" style={{ color: MUTED }}><MapPin size={10} /> {addr}</p>}
+                    </div>
                   </div>
-                  <span className="text-xs font-medium shrink-0" style={{ color: due.color, fontFamily: FONT_MONO }}>{due.text}</span>
+                  <span className="text-xs font-bold shrink-0 px-2 py-0.5 rounded-full" style={{ color: due.color, background: `${due.color}14` }}>{due.text}</span>
                 </div>
-                {addr && <p className="flex items-center gap-1 text-xs mt-2" style={{ color: MUTED }}><MapPin size={12} /> {addr}</p>}
-                <div className="flex flex-wrap gap-1.5 mt-3">
+                <div className="flex flex-wrap gap-1.5 mt-2">
                   {c.services.map((s) => <ServiceBadge key={s} id={s} />)}
                   {(c.tags || []).map((t) => <TagBadge key={t} label={t} />)}
                 </div>
-                <div className="flex items-center justify-between mt-3">
-                  <p className="text-xs" style={{ color: MUTED }}>{freqLabel(c.frequency)} · next {formatDate(c.nextServiceDate)}{c.nextServiceTime ? ` · ${formatTime(c.nextServiceTime)}` : ""}</p>
-                  {c.price && <span className="text-xs font-semibold" style={{ color: GREEN, fontFamily: FONT_MONO }}>{formatMoney(c.price)}</span>}
+                <div className="flex items-center justify-between mt-3 pt-3 border-t" style={{ borderColor: LINE }}>
+                  <p className="text-xs" style={{ color: MUTED }}>{freqLabel(c.frequency)}{c.nextServiceDate ? ` · ${formatDate(c.nextServiceDate)}` : ""}</p>
+                  <div className="flex items-center gap-2">
+                    {lifetime > 0 && <span className="text-xs font-bold" style={{ color: GREEN, fontFamily: FONT_MONO }}>{formatMoney(lifetime)}</span>}
+                    {c.price && <span className="text-xs" style={{ color: MUTED, fontFamily: FONT_MONO }}>{formatMoney(c.price)}/visit</span>}
+                  </div>
                 </div>
               </button>
             );
@@ -1184,8 +1289,8 @@ function DetailDrawer({ client, onClose, onEdit, onDelete, onMark, noteDraft, se
   );
 }
 
-/* ---------- Door Map: real, live TomTom map via Leaflet ---------- */
-function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin }) {
+/* ---------- Door Map ---------- */
+function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin, showToast, onOpenClient }) {
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef(null);
@@ -1224,10 +1329,13 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin }) 
     markersRef.current.clearLayers();
     pins.filter((p) => p.lat != null && p.lng != null).forEach((pin) => {
       const status = statusMap[pin.statusId] || statusMap["not-home"];
-      const marker = L.circleMarker([pin.lat, pin.lng], { radius: 9, color: "#ffffff", weight: 2, fillColor: status.color, fillOpacity: 0.95 });
-      marker.on("click", () => {
-        setPanel({ mode: "edit", id: pin.id, lat: pin.lat, lng: pin.lng, label: pin.label, statusId: pin.statusId, notes: pin.notes || "" });
+      const marker = L.circleMarker([pin.lat, pin.lng], {
+        radius: 10, color: "#ffffff", weight: 2.5, fillColor: status.color, fillOpacity: 1,
+      });
+      marker.on("click", (e) => {
+        L.DomEvent.stopPropagation(e);
         const linked = pin.clientId ? clients.find((c) => c.id === pin.clientId) : null;
+        setPanel({ mode: "edit", id: pin.id, lat: pin.lat, lng: pin.lng, label: pin.label, statusId: pin.statusId, notes: pin.notes || "", linkedClient: linked || null });
         setExpanded(!!linked);
         setClientForm(linked ? { ...emptyForm, ...linked } : { ...emptyForm, name: pin.label || "" });
       });
@@ -1256,15 +1364,20 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin }) 
   }
 
   function quickTagAndSave(statusId) {
+    const label = statusMap[statusId]?.label || statusId;
     if (panel.mode === "create") {
       persistPins([...pins, { id: genId(), lat: panel.lat, lng: panel.lng, label: panel.label || "Untitled house", statusId, notes: panel.notes, clientId: null, updatedAt: new Date().toISOString() }]);
+      showToast(`Pin dropped · ${label}`);
     } else {
       persistPins(pins.map((p) => (p.id === panel.id ? { ...p, label: panel.label, statusId, notes: panel.notes, updatedAt: new Date().toISOString() } : p)));
+      showToast(`Updated to ${label}`);
     }
     setPanel(null);
   }
   function saveExpanded() {
+    const hasAppt = !!clientForm.nextServiceDate;
     upsertClientAndPin(clientForm, { lat: panel.lat, lng: panel.lng, pinId: panel.id });
+    showToast(hasAppt ? "Client saved · added to schedule" : "Client saved");
     setPanel(null);
   }
   function deletePanelPin() {
@@ -1279,14 +1392,22 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin }) 
     return c;
   }, [pins]);
 
+  const conversionRate = pins.length ? Math.round(((counts["appointment"] || 0) + (counts["completed"] || 0)) / pins.length * 100) : 0;
+
   return (
-    <div>
-      <div className="flex flex-wrap gap-2 mb-4">
+    <div className="animate-fade-in">
+      <div className="flex flex-wrap gap-2 mb-3">
         {HOUSE_STATUSES.map((s) => (
-          <span key={s.id} className="flex items-center gap-1.5 text-xs rounded-full border px-2.5 py-1 bg-white" style={{ borderColor: LINE }}>
-            <span style={{ width: 8, height: 8, borderRadius: 999, background: s.color, display: "inline-block" }} />{s.label} <span style={{ color: MUTED }}>({counts[s.id] || 0})</span>
+          <span key={s.id} className="flex items-center gap-1.5 text-xs rounded-full border px-2.5 py-1 font-medium bg-white" style={{ borderColor: `${s.color}40`, color: s.color }}>
+            <span style={{ width: 8, height: 8, borderRadius: 999, background: s.color, display: "inline-block" }} />
+            {s.label} <span style={{ color: MUTED, fontWeight: 400 }}>({counts[s.id] || 0})</span>
           </span>
         ))}
+        {pins.length > 0 && (
+          <span className="flex items-center gap-1.5 text-xs rounded-full border px-2.5 py-1 font-semibold ml-auto" style={{ borderColor: `${PURPLE}40`, color: PURPLE, background: `${PURPLE}0A` }}>
+            <Target size={11} /> {conversionRate}% conversion
+          </span>
+        )}
       </div>
 
       <div className="flex gap-2 mb-3">
@@ -1304,39 +1425,67 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin }) 
       <div ref={mapElRef} className="rounded-xl border" style={{ borderColor: LINE, height: 520, width: "100%" }} />
 
       {panel && createPortal(
-        <div className="fixed inset-0 flex items-center justify-center bg-black/40 px-4 py-8 overflow-y-auto" style={{ zIndex: 9999 }}>
-          <div className="bg-white rounded-xl p-5 max-w-sm w-full">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold" style={{ color: INK, fontFamily: FONT_HEAD }}>{panel.mode === "create" ? "New house" : "Edit house"}</p>
-              <button onClick={() => setPanel(null)}><X size={16} /></button>
+        <div className="fixed inset-0 flex items-end sm:items-center justify-center bg-black/50 px-3 pb-4 sm:px-4 sm:py-8 overflow-y-auto" style={{ zIndex: 9999 }}>
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl animate-slide-up overflow-hidden">
+            {/* header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: LINE, background: panel.mode === "create" ? `linear-gradient(135deg, ${GREEN}18, ${ACCENT}10)` : `linear-gradient(135deg, ${ACCENT}12, ${INK}08)` }}>
+              <div>
+                <p className="font-bold text-sm" style={{ color: INK, fontFamily: FONT_HEAD }}>{panel.mode === "create" ? "New house pin" : panel.linkedClient ? panel.linkedClient.name : panel.label || "House pin"}</p>
+                {panel.linkedClient && <p className="text-xs mt-0.5" style={{ color: MUTED }}>Linked client · tap to edit</p>}
+              </div>
+              <div className="flex items-center gap-2">
+                {panel.mode === "edit" && panel.linkedClient && (
+                  <button onClick={() => { setPanel(null); onOpenClient(panel.linkedClient.id); }} className="text-xs font-semibold px-2.5 py-1 rounded-lg" style={{ background: `${ACCENT}14`, color: ACCENT }}>View →</button>
+                )}
+                <button onClick={() => setPanel(null)} className="p-1 rounded-lg hover:bg-black/5"><X size={16} /></button>
+              </div>
             </div>
-            {!expanded ? (
-              <>
-                <p className="text-xs font-medium mb-1.5" style={{ color: MUTED }}>TAP A STATUS TO SAVE INSTANTLY</p>
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  {HOUSE_STATUSES.map((s) => (
-                    <button key={s.id} onClick={() => quickTagAndSave(s.id)} className="flex items-center gap-1.5 rounded-lg border px-3 py-2.5 text-sm font-medium" style={{ borderColor: s.color, background: `${s.color}10`, color: s.color }}>
-                      <span style={{ width: 8, height: 8, borderRadius: 999, background: s.color, display: "inline-block" }} />{s.label}
+
+            <div className="px-5 py-4">
+              {!expanded ? (
+                <>
+                  <p className="text-xs font-bold mb-2 tracking-wide" style={{ color: MUTED }}>SET STATUS</p>
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    {HOUSE_STATUSES.map((s) => {
+                      const active = panel.statusId === s.id;
+                      return (
+                        <button key={s.id} onClick={() => quickTagAndSave(s.id)}
+                          className="flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all"
+                          style={{ borderColor: active ? s.color : `${s.color}50`, background: active ? s.color : `${s.color}10`, color: active ? "white" : s.color }}>
+                          <span style={{ width: 8, height: 8, borderRadius: 999, background: active ? "white" : s.color, display: "inline-block", flexShrink: 0 }} />
+                          {s.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <input value={panel.label} onChange={(e) => setPanel((p) => ({ ...p, label: e.target.value }))} placeholder="Address or label (optional)" className="text-sm rounded-xl border px-3 py-2 w-full mb-2" style={{ borderColor: LINE }} />
+                  <textarea value={panel.notes} onChange={(e) => setPanel((p) => ({ ...p, notes: e.target.value }))} placeholder="Notes (gate code, pets, etc.)" rows={2} className="text-sm rounded-xl border px-3 py-2 w-full mb-4" style={{ borderColor: LINE, resize: "vertical" }} />
+                  <button onClick={() => setExpanded(true)} className="flex items-center gap-1.5 text-sm font-semibold mb-4 w-full justify-center rounded-xl border py-2.5" style={{ borderColor: `${ACCENT}40`, color: ACCENT, background: `${ACCENT}08` }}>
+                    <Plus size={15} /> {panel.linkedClient ? "Edit client details" : "Add client info & book appointment"}
+                  </button>
+                  <div className="flex justify-between gap-2">
+                    {panel.mode === "edit" ? (
+                      <button onClick={deletePanelPin} className="flex items-center gap-1.5 text-xs rounded-xl border px-3 py-2 font-medium" style={{ borderColor: `${RED}40`, color: RED }}>
+                        <Trash2 size={13} /> Delete pin
+                      </button>
+                    ) : <span />}
+                    <button onClick={() => quickTagAndSave(panel.statusId)} className="text-xs font-semibold rounded-xl px-3 py-2 text-white" style={{ background: ACCENT }}>
+                      Save
                     </button>
-                  ))}
-                </div>
-                <input value={panel.label} onChange={(e) => setPanel((p) => ({ ...p, label: e.target.value }))} placeholder="Address or label (optional)" className="text-sm rounded-lg border px-3 py-2 w-full mb-2" style={{ borderColor: LINE }} />
-                <textarea value={panel.notes} onChange={(e) => setPanel((p) => ({ ...p, notes: e.target.value }))} placeholder="Notes (optional)" rows={2} className="text-sm rounded-lg border px-3 py-2 w-full mb-3" style={{ borderColor: LINE, resize: "vertical" }} />
-                <button onClick={() => setExpanded(true)} className="text-xs font-medium mb-3" style={{ color: ACCENT }}>+ Got their info? Add full client details</button>
-                <div className="flex justify-between gap-2">
-                  {panel.mode === "edit" ? <button onClick={deletePanelPin} className="flex items-center gap-1 text-xs rounded-lg border px-2.5 py-1.5" style={{ borderColor: LINE, color: RED }}><Trash2 size={12} /> Delete</button> : <span />}
-                  <button onClick={() => quickTagAndSave(panel.statusId)} className="text-xs font-medium rounded-lg px-3 py-1.5 text-white" style={{ background: ACCENT }}>Save without changing status</button>
-                </div>
-              </>
-            ) : (
-              <>
-                <ClientFieldsForm form={clientForm} setForm={setClientForm} compact clients={clients} />
-                <div className="flex justify-between gap-2 mt-3">
-                  <button onClick={() => setExpanded(false)} className="text-xs rounded-lg border px-2.5 py-1.5" style={{ borderColor: LINE, color: MUTED }}>Back</button>
-                  <button onClick={saveExpanded} className="text-xs font-medium rounded-lg px-3 py-1.5 text-white" style={{ background: ACCENT }}>Save client</button>
-                </div>
-              </>
-            )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <ClientFieldsForm form={clientForm} setForm={setClientForm} compact clients={clients} />
+                  <div className="flex justify-between gap-2 mt-4">
+                    <button onClick={() => setExpanded(false)} className="text-xs rounded-xl border px-3 py-2 font-medium" style={{ borderColor: LINE, color: MUTED }}>← Back</button>
+                    <button onClick={saveExpanded} className="text-sm font-bold rounded-xl px-4 py-2 text-white flex items-center gap-1.5" style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}>
+                      <CheckCircle2 size={14} /> Save to clients & schedule
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>,
         document.body
@@ -1347,16 +1496,25 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin }) 
 
 /* ---------- Finance tab ---------- */
 function FinanceTab({ clients }) {
+  const [goal, setGoal] = useState(() => {
+    try { return Number(localStorage.getItem("revenueGoal")) || 0; } catch { return 0; }
+  });
+  const [editingGoal, setEditingGoal] = useState(false);
+  const [goalDraft, setGoalDraft] = useState("");
+
   const jobs = useMemo(() => {
     const list = [];
     clients.forEach((c) => (c.history || []).forEach((h) => list.push({ ...h, clientName: c.name })));
     return list.sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [clients]);
 
+  const today = todayStr();
+  const thisMonth = today.slice(0, 7);
   const totalRevenue = jobs.reduce((sum, j) => sum + (Number(j.price) || 0), 0);
   const jobsCompleted = jobs.length;
   const avgJobValue = jobsCompleted ? totalRevenue / jobsCompleted : 0;
   const projected = clients.filter((c) => c.nextServiceDate).reduce((sum, c) => sum + (Number(c.price) || 0), 0);
+  const thisMonthRevenue = jobs.filter((j) => j.date.slice(0, 7) === thisMonth).reduce((sum, j) => sum + (Number(j.price) || 0), 0);
 
   const monthly = useMemo(() => {
     const groups = {};
@@ -1366,56 +1524,99 @@ function FinanceTab({ clients }) {
       groups[key].revenue += Number(j.price) || 0;
       groups[key].count += 1;
     });
-    return Object.entries(groups).map(([month, v]) => ({ month, ...v })).sort((a, b) => (a.month < b.month ? 1 : -1)).slice(0, 12);
+    return Object.entries(groups).map(([month, v]) => ({ month, ...v })).sort((a, b) => (a.month < b.month ? 1 : -1)).slice(0, 6);
   }, [jobs]);
 
   if (clients.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center text-center py-16 rounded-xl border border-dashed bg-white" style={{ borderColor: LINE }}>
-        <DollarSign size={32} style={{ color: ACCENT_LIGHT }} />
-        <p className="mt-3 font-medium" style={{ color: INK, fontFamily: FONT_HEAD }}>No revenue yet</p>
-        <p className="text-sm mt-1 max-w-xs" style={{ color: MUTED }}>Add clients and mark services complete to start tracking revenue.</p>
+      <div className="flex flex-col items-center justify-center text-center py-16 rounded-2xl border border-dashed bg-white" style={{ borderColor: LINE }}>
+        <div className="rounded-2xl p-4 mb-3" style={{ background: `${GREEN}14` }}><DollarSign size={32} style={{ color: GREEN }} /></div>
+        <p className="font-bold text-lg" style={{ color: INK, fontFamily: FONT_HEAD }}>No revenue yet</p>
+        <p className="text-sm mt-1 max-w-xs" style={{ color: MUTED }}>Add clients and mark services complete to start tracking revenue here.</p>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard icon={DollarSign} label="Total Revenue" value={formatMoney(totalRevenue)} accent={GREEN} sub="All-time, completed jobs" />
-        <StatCard icon={Briefcase} label="Jobs Completed" value={jobsCompleted} accent={ACCENT} sub="All-time" />
-        <StatCard icon={TrendingUp} label="Avg. Job Value" value={formatMoney(avgJobValue)} accent={AMBER} sub="Per completed job" />
-        <StatCard icon={ClipboardList} label="Projected Upcoming" value={formatMoney(projected)} accent={INK_SOFT} sub="From scheduled clients" />
+        <StatCard icon={DollarSign} label="Total Revenue" value={formatMoney(totalRevenue)} accent={GREEN} sub="All-time" />
+        <StatCard icon={Briefcase} label="Jobs Done" value={jobsCompleted} accent={ACCENT} sub="All-time" />
+        <StatCard icon={TrendingUp} label="Avg. Job" value={formatMoney(avgJobValue)} accent={AMBER} sub="Per completed job" />
+        <StatCard icon={Zap} label="Projected" value={formatMoney(projected)} accent={PURPLE} sub="From scheduled clients" />
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="bg-white rounded-xl border p-4 shadow-sm" style={{ borderColor: LINE }}>
-          <p className="text-sm font-semibold mb-3" style={{ color: INK, fontFamily: FONT_HEAD }}>Revenue by month</p>
-          {monthly.length === 0 ? <p className="text-sm" style={{ color: MUTED }}>No completed jobs yet.</p> : (
-            <div className="flex flex-col gap-2">
-              {monthly.map((m) => (
-                <div key={m.month} className="flex items-center justify-between text-sm py-1.5 border-b last:border-0" style={{ borderColor: LINE }}>
-                  <span style={{ color: INK_SOFT }}>{formatMonth(m.month)}</span>
-                  <span className="flex items-center gap-3">
-                    <span className="text-xs" style={{ color: MUTED }}>{m.count} job{m.count !== 1 ? "s" : ""}</span>
-                    <span className="font-semibold" style={{ color: GREEN, fontFamily: FONT_MONO }}>{formatMoney(m.revenue)}</span>
-                  </span>
-                </div>
-              ))}
+
+      {/* Monthly goal */}
+      <div className="bg-white rounded-2xl border p-4 shadow-sm mb-5" style={{ borderColor: LINE }}>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <Target size={16} style={{ color: ACCENT }} />
+            <p className="text-sm font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>Monthly goal — {formatMonth(thisMonth)}</p>
+          </div>
+          {editingGoal ? (
+            <div className="flex items-center gap-1.5">
+              <input autoFocus value={goalDraft} onChange={(e) => setGoalDraft(e.target.value)} placeholder="0" inputMode="decimal"
+                className="text-sm border rounded-lg px-2 py-1 w-24" style={{ borderColor: LINE }} />
+              <button onClick={() => { const v = Number(goalDraft) || 0; setGoal(v); localStorage.setItem("revenueGoal", v); setEditingGoal(false); }}
+                className="text-xs font-bold px-2.5 py-1 rounded-lg text-white" style={{ background: GREEN }}>Set</button>
+              <button onClick={() => setEditingGoal(false)} className="text-xs rounded-lg px-2 py-1" style={{ color: MUTED }}>Cancel</button>
             </div>
+          ) : (
+            <button onClick={() => { setGoalDraft(goal ? String(goal) : ""); setEditingGoal(true); }} className="text-xs font-semibold" style={{ color: ACCENT }}>
+              {goal ? "Edit goal" : "Set goal"}
+            </button>
           )}
         </div>
-        <div className="bg-white rounded-xl border p-4 shadow-sm" style={{ borderColor: LINE }}>
-          <p className="text-sm font-semibold mb-3" style={{ color: INK, fontFamily: FONT_HEAD }}>Recent jobs</p>
+        {goal > 0 ? (
+          <>
+            <div className="flex items-end justify-between mt-1 mb-1">
+              <span className="text-2xl font-black" style={{ color: INK, fontFamily: FONT_HEAD }}>{formatMoney(thisMonthRevenue)}</span>
+              <span className="text-sm font-semibold" style={{ color: MUTED }}>/ {formatMoney(goal)}</span>
+            </div>
+            <ProgressBar value={thisMonthRevenue} max={goal} color={thisMonthRevenue >= goal ? GREEN : ACCENT} />
+            <p className="text-xs mt-1.5" style={{ color: thisMonthRevenue >= goal ? GREEN : MUTED }}>
+              {thisMonthRevenue >= goal ? `🎉 Goal reached! +${formatMoney(thisMonthRevenue - goal)} over` : `${formatMoney(goal - thisMonthRevenue)} to go`}
+            </p>
+          </>
+        ) : (
+          <p className="text-sm mt-1" style={{ color: MUTED }}>Set a monthly revenue goal to track your progress.</p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="bg-white rounded-2xl border p-4 shadow-sm" style={{ borderColor: LINE }}>
+          <p className="text-sm font-bold mb-1" style={{ color: INK, fontFamily: FONT_HEAD }}>Revenue by month</p>
+          {monthly.length === 0 ? <p className="text-sm" style={{ color: MUTED }}>No completed jobs yet.</p> : (
+            <>
+              <MiniBarChart data={monthly} />
+              <div className="flex flex-col gap-1.5 mt-3">
+                {monthly.map((m) => (
+                  <div key={m.month} className="flex items-center justify-between text-sm py-1.5 border-b last:border-0" style={{ borderColor: LINE }}>
+                    <span style={{ color: INK_SOFT }}>{formatMonth(m.month)}</span>
+                    <span className="flex items-center gap-3">
+                      <span className="text-xs px-2 py-0.5 rounded-full" style={{ color: MUTED, background: BG }}>{m.count} job{m.count !== 1 ? "s" : ""}</span>
+                      <span className="font-bold" style={{ color: GREEN, fontFamily: FONT_MONO }}>{formatMoney(m.revenue)}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="bg-white rounded-2xl border p-4 shadow-sm" style={{ borderColor: LINE }}>
+          <p className="text-sm font-bold mb-3" style={{ color: INK, fontFamily: FONT_HEAD }}>Recent jobs</p>
           {jobs.length === 0 ? <p className="text-sm" style={{ color: MUTED }}>No completed jobs yet.</p> : (
             <div className="flex flex-col gap-3">
               {jobs.slice(0, 8).map((j, i) => (
-                <div key={i} className="flex items-start justify-between text-sm">
+                <div key={i} className="flex items-start justify-between text-sm py-2 border-b last:border-0" style={{ borderColor: LINE }}>
                   <div>
-                    <p style={{ color: INK }}>{j.clientName}</p>
+                    <p className="font-semibold" style={{ color: INK }}>{j.clientName}</p>
                     <p className="text-xs" style={{ color: MUTED }}>{formatDate(j.date)}</p>
                     <div className="flex gap-1 mt-1">{(j.services || []).map((s) => <ServiceBadge key={s} id={s} />)}</div>
+                    {j.notes && <p className="text-xs mt-0.5 italic" style={{ color: MUTED }}>{j.notes}</p>}
                   </div>
-                  <span className="font-semibold shrink-0" style={{ color: GREEN, fontFamily: FONT_MONO }}>{formatMoney(j.price)}</span>
+                  <span className="font-bold shrink-0 text-base" style={{ color: GREEN, fontFamily: FONT_MONO }}>{formatMoney(j.price)}</span>
                 </div>
               ))}
             </div>
