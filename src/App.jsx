@@ -1304,7 +1304,7 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin }) 
       <div ref={mapElRef} className="rounded-xl border" style={{ borderColor: LINE, height: 520, width: "100%" }} />
 
       {panel && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8 overflow-y-auto">
+        <div className="fixed inset-0 flex items-center justify-center bg-black/40 px-4 py-8 overflow-y-auto" style={{ zIndex: 9999 }}>
           <div className="bg-white rounded-xl p-5 max-w-sm w-full">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-semibold" style={{ color: INK, fontFamily: FONT_HEAD }}>{panel.mode === "create" ? "New house" : "Edit house"}</p>
