@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
@@ -1302,7 +1303,7 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin }) 
 
       <div ref={mapElRef} className="rounded-xl border" style={{ borderColor: LINE, height: 520, width: "100%" }} />
 
-      {panel && (
+      {panel && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8 overflow-y-auto">
           <div className="bg-white rounded-xl p-5 max-w-sm w-full">
             <div className="flex items-center justify-between mb-3">
@@ -1337,7 +1338,8 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin }) 
               </>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
