@@ -1199,8 +1199,8 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin }) 
     if (mapRef.current || !mapElRef.current) return;
     const map = L.map(mapElRef.current, { center: [39.5, -98.35], zoom: 4 });
     L.tileLayer(
-      `https://{s}.api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${TOMTOM_KEY}`,
-      { subdomains: ["a", "b", "c", "d"], maxZoom: 19, attribution: "© TomTom" }
+      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      { maxZoom: 19, attribution: "© OpenStreetMap contributors" }
     ).addTo(map);
     markersRef.current = L.layerGroup().addTo(map);
     map.on("click", (e) => {
@@ -1239,11 +1239,11 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin }) 
     setSearching(true);
     setSearchError(null);
     try {
-      const res = await fetch(`https://api.tomtom.com/search/2/geocode/${encodeURIComponent(searchQuery)}.json?key=${TOMTOM_KEY}&limit=1`);
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=1`, { headers: { "Accept-Language": "en" } });
       const data = await res.json();
-      const pos = data?.results?.[0]?.position;
+      const pos = data?.[0];
       if (pos) {
-        mapRef.current.setView([pos.lat, pos.lon], 16);
+        mapRef.current.setView([parseFloat(pos.lat), parseFloat(pos.lon)], 16);
       } else {
         setSearchError("No matching address found.");
       }
