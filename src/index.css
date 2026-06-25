@@ -6,3 +6,11 @@ html, body, #root {
   margin: 0;
   padding: 0;
 }
+
+/* Tailwind's base reset sets max-width:100% on all <img>, which breaks Leaflet tile sizing */
+.leaflet-tile {
+  max-width: none !important;
+}
+.leaflet-container img {
+  max-width: none;
+}

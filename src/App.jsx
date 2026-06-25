@@ -1209,6 +1209,7 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin }) 
       setClientForm(emptyForm);
     });
     mapRef.current = map;
+    setTimeout(() => map.invalidateSize(), 200);
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => map.setView([pos.coords.latitude, pos.coords.longitude], 15),
