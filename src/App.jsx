@@ -11,11 +11,16 @@ import {
   Zap, Target, Award, Star, ArrowUpRight,
   FileText, MessageSquare, Copy, Wind, CloudRain, CloudSun,
   Cloud, Thermometer, CheckSquare, Square, Send,
-  Percent, Layers, LogOut, Receipt,
+  Percent, Layers, LogOut, Receipt, Settings as SettingsIcon, Camera,
 } from "lucide-react";
+import emailjs from "@emailjs/browser";
 import { storage } from "./lib/storage";
 import { supabase } from "./lib/supabaseClient";
 import logo from "./assets/logo.png";
+
+const EJS_SVC  = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+const EJS_TPL  = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+const EJS_KEY  = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
 /* ═══════════════════════════════════════
    DESIGN TOKENS — Premium 2026 palette
@@ -111,6 +116,7 @@ const NAV_ITEMS = [
   { id: "schedule",  label: "Schedule", icon: ClipboardList   },
   { id: "canvass",   label: "Door Map", icon: HomeIcon        },
   { id: "finance",   label: "Finance",  icon: DollarSign      },
+  { id: "settings",  label: "Settings", icon: SettingsIcon    },
 ];
 
 const DURATION_PRESETS = [30, 60, 90, 120];
@@ -887,6 +893,7 @@ function AuthScreen() {
 export default function App() {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [userAvatar, setUserAvatar] = useState(null);
   const [clients, setClients] = useState([]);
   const [pins, setPins] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -909,6 +916,13 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, s) => setSession(s));
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    storage.get(`avatar:${session.user.id}`).then((r) => {
+      if (r) setUserAvatar(JSON.parse(r.value));
+    }).catch(() => {});
+  }, [session?.user?.id]);
 
   const [query, setQuery] = useState("");
   const [serviceFilter, setServiceFilter] = useState(null);
@@ -1024,7 +1038,9 @@ export default function App() {
     const today = todayStr();
     const note = noteDrafts[client.id] || "";
     const price = getPriceDraft(client);
-    const entry = { date: today, services: client.services, notes: note, price: Number(price) || 0 };
+    const meta = session?.user?.user_metadata || {};
+    const sellerName = [meta.first_name, meta.last_name].filter(Boolean).join(" ") || session?.user?.email?.split("@")[0] || "Unknown";
+    const entry = { date: today, services: client.services, notes: note, price: Number(price) || 0, bookedBy: sellerName, bookedById: session?.user?.id };
     const nextDate = client.frequency === "one-time" ? null : addInterval(today, client.frequency);
     const updated = { ...client, history: [entry, ...(client.history || [])], nextServiceDate: nextDate, nextServiceTime: nextDate ? client.nextServiceTime : "" };
     persist(clients.map((c) => (c.id === client.id ? updated : c)), `Job logged${price ? ` · ${formatMoney(price)}` : ""}`);
@@ -1102,6 +1118,21 @@ export default function App() {
             );
           })}
           <div className="mt-auto pt-4 mx-1 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+            {/* User mini-profile */}
+            <div className="px-3 py-2 mb-2 flex items-center gap-2.5">
+              {userAvatar
+                ? <img src={userAvatar} alt="avatar" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover", flexShrink: 0, border: `2px solid ${P}60` }} />
+                : <div style={{ width: 30, height: 30, borderRadius: "50%", background: `linear-gradient(135deg,${P},${P_DEEP})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.7rem", fontWeight: 800, color: "white", flexShrink: 0 }}>
+                    {(session?.user?.user_metadata?.first_name?.[0] || session?.user?.email?.[0] || "?").toUpperCase()}
+                  </div>
+              }
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold truncate" style={{ color: "rgba(255,255,255,0.6)" }}>
+                  {[session?.user?.user_metadata?.first_name, session?.user?.user_metadata?.last_name].filter(Boolean).join(" ") || "My Account"}
+                </p>
+                <p className="text-xs truncate" style={{ color: "rgba(255,255,255,0.28)", fontFamily: FONT_MONO }}>{session?.user?.email}</p>
+              </div>
+            </div>
             <button onClick={() => supabase.auth.signOut()} className="flex items-center gap-2 px-3 py-2 rounded-xl w-full" style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.35)" }}>
               <LogOut size={14} />
               <span className="text-xs font-bold" style={{ fontFamily: FONT_HEAD }}>Sign out</span>
@@ -1117,7 +1148,7 @@ export default function App() {
               {page === "dashboard" && (
                 <>
                   <TabHero icons={[LayoutDashboard, Sparkles]} from={P} to={DARK} title="Welcome back" subtitle={`Here's your business at a glance — ${new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}`} />
-                  <DashboardTab clients={clients} pins={pins} onOpenClient={setSelectedId} setPage={setPage} onAdd={openAdd} />
+                  <DashboardTab clients={clients} pins={pins} onOpenClient={setSelectedId} setPage={setPage} onAdd={openAdd} session={session} />
                 </>
               )}
               {page === "clients" && (
@@ -1148,6 +1179,9 @@ export default function App() {
                   <FinanceTab clients={clients} />
                 </>
               )}
+              {page === "settings" && (
+                <SettingsTab session={session} userAvatar={userAvatar} setUserAvatar={setUserAvatar} showToast={showToast} />
+              )}
             </>
           )}
         </main>
@@ -1177,6 +1211,7 @@ export default function App() {
           setNoteDraft={(v) => setNoteDrafts((d) => ({ ...d, [selected.id]: v }))}
           priceDraft={getPriceDraft(selected)}
           setPriceDraft={(v) => setPriceDrafts((d) => ({ ...d, [selected.id]: v }))}
+          showToast={showToast}
         />
       )}
 
@@ -1207,7 +1242,7 @@ export default function App() {
 }
 
 /* ---------- Dashboard ---------- */
-function DashboardTab({ clients, pins, onOpenClient, setPage, onAdd }) {
+function DashboardTab({ clients, pins, onOpenClient, setPage, onAdd, session }) {
   const today = todayStr();
   const todays = clients.filter((c) => c.nextServiceDate === today).sort((a, b) => (a.nextServiceTime || "").localeCompare(b.nextServiceTime || ""));
   const overdue = clients.filter((c) => c.nextServiceDate && daysUntil(c.nextServiceDate) < 0);
@@ -1218,11 +1253,22 @@ function DashboardTab({ clients, pins, onOpenClient, setPage, onAdd }) {
   const revTrend = lastMonthRevenue ? Math.round(((monthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100) : undefined;
   const upcomingCount = clients.filter((c) => c.nextServiceDate && daysUntil(c.nextServiceDate) >= 0).length;
   const recurringCount = clients.filter((c) => c.frequency && c.frequency !== "one-time").length;
-  const topClients = useMemo(() => [...clients]
-    .filter((c) => (c.history || []).length > 0)
-    .map((c) => ({ ...c, lifetime: (c.history || []).reduce((s, h) => s + (Number(h.price) || 0), 0) }))
-    .sort((a, b) => b.lifetime - a.lifetime)
-    .slice(0, 5), [clients]);
+  const currentUserName = [session?.user?.user_metadata?.first_name, session?.user?.user_metadata?.last_name].filter(Boolean).join(" ") || session?.user?.email?.split("@")[0];
+
+  // Top Sellers: aggregate revenue by bookedBy field in job history
+  const leaderboard = useMemo(() => {
+    const totals = {};
+    clients.forEach((c) => {
+      (c.history || []).forEach((h) => {
+        if (!h.bookedBy) return;
+        totals[h.bookedBy] = (totals[h.bookedBy] || 0) + (Number(h.price) || 0);
+      });
+    });
+    return Object.entries(totals)
+      .map(([name, total]) => ({ name, total }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+  }, [clients]);
 
   return (
     <div className="anim-fade-up" style={{ fontFamily: FONT_BODY }}>
@@ -1275,24 +1321,42 @@ function DashboardTab({ clients, pins, onOpenClient, setPage, onAdd }) {
           )}
         </div>
 
-        {/* Top clients */}
-        <div className="flex flex-col gap-4">
-          {topClients.length > 0 && (
-            <div className="card p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>Top Clients</p>
-                <Award size={15} style={{ color: P }} />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                {topClients.map((c, i) => (
-                  <button key={c.id} onClick={() => onOpenClient(c.id)} className="flex items-center gap-2.5 text-sm py-1 card-lift rounded-xl px-1">
-                    <span className="text-xs font-black w-5 shrink-0 text-center" style={{ color: [AMBER, MUTED, "#B87333"][i] || MUTED, fontFamily: FONT_MONO }}>#{i + 1}</span>
-                    <Avatar name={c.name} size={26} />
-                    <span className="flex-1 min-w-0 truncate font-medium" style={{ color: INK }}>{c.name}</span>
-                    <span className="font-bold text-xs" style={{ color: EMERALD, fontFamily: FONT_MONO }}>{formatMoney(c.lifetime)}</span>
-                  </button>
-                ))}
-              </div>
+        {/* Top Sellers leaderboard */}
+        <div className="card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>Top Sellers</p>
+            <Award size={15} style={{ color: AMBER }} />
+          </div>
+          {leaderboard.length === 0 ? (
+            <div className="flex flex-col items-center py-4 gap-1.5">
+              <Star size={20} style={{ color: MUTED }} />
+              <p className="text-xs text-center" style={{ color: MUTED }}>Mark jobs complete to start tracking sales.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {leaderboard.map(({ name, total }, i) => {
+                const isMe = name === currentUserName;
+                const rankColor = [AMBER, "#9CA3AF", "#B87333"][i] || MUTED;
+                const barPct = leaderboard[0]?.total ? Math.max(8, (total / leaderboard[0].total) * 100) : 0;
+                return (
+                  <div key={name} className="rounded-xl px-3 py-2.5" style={{ background: isMe ? `${P}08` : BG, border: `1px solid ${isMe ? P + "30" : LINE}` }}>
+                    <div className="flex items-center gap-2.5 mb-1.5">
+                      <span className="text-xs font-black w-5 shrink-0 text-center" style={{ color: rankColor, fontFamily: FONT_MONO }}>#{i + 1}</span>
+                      <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                        <div style={{ width: 24, height: 24, borderRadius: "50%", background: `linear-gradient(135deg,${getAvatarColor(name)},${getAvatarColor(name)}99)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.6rem", fontWeight: 800, color: "white", flexShrink: 0 }}>
+                          {getInitials(name)}
+                        </div>
+                        <span className="font-semibold text-sm truncate" style={{ color: INK }}>{name}</span>
+                        {isMe && <span className="text-xs px-1.5 py-0.5 rounded-full font-bold" style={{ background: P_LIGHT, color: P }}>You</span>}
+                      </div>
+                      <span className="font-black text-sm shrink-0" style={{ color: EMERALD, fontFamily: FONT_MONO }}>{formatMoney(total)}</span>
+                    </div>
+                    <div className="rounded-full overflow-hidden ml-7" style={{ height: 4, background: `${LINE}` }}>
+                      <div style={{ width: `${barPct}%`, height: "100%", borderRadius: 999, background: `linear-gradient(90deg, ${P}, ${CYAN})` }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -1678,7 +1742,7 @@ function CommTemplates({ client }) {
 }
 
 /* ---------- Detail drawer ---------- */
-function DetailDrawer({ client, onClose, onEdit, onDelete, onMark, noteDraft, setNoteDraft, priceDraft, setPriceDraft }) {
+function DetailDrawer({ client, onClose, onEdit, onDelete, onMark, noteDraft, setNoteDraft, priceDraft, setPriceDraft, showToast }) {
   const due = dueText(daysUntil(client.nextServiceDate));
   const addr = formatAddress(client);
   const lifetimeValue = (client.history || []).reduce((sum, h) => sum + (Number(h.price) || 0), 0);
@@ -1747,7 +1811,7 @@ function DetailDrawer({ client, onClose, onEdit, onDelete, onMark, noteDraft, se
           <div className="flex gap-2 mt-2">
             <button onClick={onMark} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-white whitespace-nowrap flex-1" style={{ background: GREEN }}><CheckCircle2 size={14} /> Mark serviced</button>
             {client.email && (
-              <button onClick={() => sendReceiptEmail(client, priceDraft, noteDraft)} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap" style={{ background: P_LIGHT, color: P }}>
+              <button onClick={() => sendReceiptEmail(client, priceDraft, noteDraft, undefined, undefined, showToast)} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap" style={{ background: P_LIGHT, color: P }}>
                 <Receipt size={14} /> Send receipt
               </button>
             )}
@@ -1777,7 +1841,7 @@ function DetailDrawer({ client, onClose, onEdit, onDelete, onMark, noteDraft, se
                       {!!h.price && <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ color: EMERALD, background: EM_L, fontFamily: FONT_MONO }}>{formatMoney(h.price)}</span>}
                     </div>
                     {client.email && (
-                      <button onClick={() => sendReceiptEmail(client, h.price, h.notes, h.date, h.services)} className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg" style={{ background: P_LIGHT, color: P }}>
+                      <button onClick={() => sendReceiptEmail(client, h.price, h.notes, h.date, h.services, showToast)} className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg" style={{ background: P_LIGHT, color: P }}>
                         <Receipt size={11} /> Receipt
                       </button>
                     )}
@@ -1794,13 +1858,34 @@ function DetailDrawer({ client, onClose, onEdit, onDelete, onMark, noteDraft, se
   );
 }
 
-function sendReceiptEmail(client, price, notes, date, services) {
+async function sendReceiptEmail(client, price, notes, date, services, showToast) {
   const d = date || todayStr();
-  const svcList = (services || client.services || []).map((s) => ({ window: "Window Cleaning", solar: "Solar Panel Cleaning", pressure: "Pressure Washing", gutter: "Gutter Cleaning" })[s] || s);
+  const svcMap = { window: "Window Cleaning", solar: "Solar Panel Cleaning", pressure: "Pressure Washing", gutter: "Gutter Cleaning" };
+  const svcList = (services || client.services || []).map((s) => svcMap[s] || s);
   const addr = formatAddress(client);
   const amt = formatMoney(Number(price) || 0);
   const dateLabel = new Date(d + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
+  // Try EmailJS auto-send first if configured
+  if (EJS_SVC && EJS_TPL && EJS_KEY) {
+    try {
+      await emailjs.send(EJS_SVC, EJS_TPL, {
+        to_email:      client.email,
+        to_name:       client.name || "Valued Customer",
+        date:          dateLabel,
+        services_list: svcList.map((s) => `✓ ${s}`).join("\n"),
+        total:         amt,
+        address:       addr || "—",
+        notes:         notes || "",
+      }, EJS_KEY);
+      showToast?.("Receipt sent to " + client.email);
+      return;
+    } catch {
+      showToast?.("Auto-send failed — opening Gmail instead", "warning");
+    }
+  }
+
+  // Fallback: open Gmail compose in browser
   const body = [
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
     "  RECEIPT — PEAK PROPERTY CARE",
@@ -1826,7 +1911,7 @@ function sendReceiptEmail(client, price, notes, date, services) {
     "Peak Property Care",
     "peakpropertycareca@gmail.com",
     "──────────────────────────────────",
-  ].filter((l) => l !== undefined).join("\n");
+  ].filter(Boolean).join("\n");
 
   const subject = `Receipt – Peak Property Care – ${dateLabel}`;
   const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(client.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -2034,6 +2119,159 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin, sh
         </div>,
         document.body
       )}
+    </div>
+  );
+}
+
+/* ---------- Settings / Profile tab ---------- */
+function SettingsTab({ session, userAvatar, setUserAvatar, showToast }) {
+  const meta = session?.user?.user_metadata || {};
+  const [firstName, setFirstName] = useState(meta.first_name || "");
+  const [lastName,  setLastName]  = useState(meta.last_name  || "");
+  const [phone,     setPhone]     = useState(meta.phone      || "");
+  const [saving,    setSaving]    = useState(false);
+  const ejsConfigured = !!(EJS_SVC && EJS_TPL && EJS_KEY);
+
+  async function saveProfile() {
+    setSaving(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: { first_name: firstName.trim(), last_name: lastName.trim(), phone: phone.trim() },
+      });
+      if (error) throw error;
+      showToast("Profile saved!");
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+    setSaving(false);
+  }
+
+  function handleAvatarUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    compressImageFile(file, 240, 0.82, async (dataUrl) => {
+      setUserAvatar(dataUrl);
+      await storage.set(`avatar:${session.user.id}`, JSON.stringify(dataUrl));
+      showToast("Profile picture updated!");
+    });
+    e.target.value = "";
+  }
+
+  async function removeAvatar() {
+    setUserAvatar(null);
+    await storage.delete(`avatar:${session.user.id}`);
+    showToast("Profile picture removed");
+  }
+
+  const displayName = [firstName, lastName].filter(Boolean).join(" ") || "Your Name";
+
+  return (
+    <div className="anim-fade-up" style={{ fontFamily: FONT_BODY }}>
+      <TabHero icons={[SettingsIcon, Users]} from={P} to={P_DEEP} title="Profile & Settings" subtitle="Update your personal info and configure the app." />
+
+      {/* Profile card */}
+      <div className="card p-6 mb-4">
+        <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: MUTED }}>My Profile</p>
+
+        {/* Avatar */}
+        <div className="flex items-center gap-4 mb-5">
+          <div className="relative shrink-0">
+            {userAvatar
+              ? <img src={userAvatar} alt="Profile" style={{ width: 76, height: 76, borderRadius: "50%", objectFit: "cover", border: `3px solid ${P}40`, display: "block" }} />
+              : <div style={{ width: 76, height: 76, borderRadius: "50%", background: `linear-gradient(135deg,${P},${P_DEEP})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.6rem", fontWeight: 800, color: "white", fontFamily: FONT_HEAD }}>
+                  {(firstName[0] || "?").toUpperCase()}
+                </div>
+            }
+            <label className="absolute bottom-0 right-0 flex items-center justify-center cursor-pointer" style={{ width: 28, height: 28, borderRadius: "50%", background: P, border: "2.5px solid white" }}>
+              <Camera size={13} color="white" />
+              <input type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
+            </label>
+          </div>
+          <div>
+            <p className="font-black text-base" style={{ color: INK, fontFamily: FONT_HEAD }}>{displayName}</p>
+            <p className="text-sm mt-0.5" style={{ color: MUTED }}>{session?.user?.email}</p>
+            {userAvatar && (
+              <button onClick={removeAvatar} className="text-xs mt-1.5 font-medium" style={{ color: RED }}>Remove photo</button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="First name">
+              <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="John" style={inputStyle} />
+            </Field>
+            <Field label="Last name">
+              <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Smith" style={inputStyle} />
+            </Field>
+          </div>
+          <Field label="Phone">
+            <input value={phone} onChange={(e) => setPhone(formatPhoneInput(e.target.value))} placeholder="(555) 555-5555" inputMode="tel" style={inputStyle} />
+          </Field>
+          <Field label="Email (read-only)">
+            <input value={session?.user?.email || ""} disabled style={{ ...inputStyle, background: BG, color: MUTED, cursor: "default" }} />
+          </Field>
+        </div>
+
+        <button onClick={saveProfile} disabled={saving} className="flex items-center justify-center gap-2 rounded-xl py-2.5 px-5 text-sm font-bold text-white mt-4" style={{ background: saving ? `${P}70` : `linear-gradient(135deg,${P},${P_DEEP})`, boxShadow: `0 4px 16px ${P}30` }}>
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+          Save Profile
+        </button>
+      </div>
+
+      {/* Email receipts setup */}
+      <div className="card p-6 mb-4">
+        <div className="flex items-center gap-2 mb-1">
+          <p className="text-xs font-bold uppercase tracking-widest" style={{ color: MUTED }}>Email Receipts</p>
+          <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{ background: ejsConfigured ? EM_L : AMB_L, color: ejsConfigured ? EMERALD : AMBER }}>
+            {ejsConfigured ? "✓ Active — auto-send on" : "Setup required"}
+          </span>
+        </div>
+        <p className="text-xs mb-4" style={{ color: MUTED }}>
+          {ejsConfigured
+            ? "Clicking \"Send receipt\" automatically emails the client from your business Gmail."
+            : "Without setup, clicking \"Send receipt\" opens Gmail in a new tab. Follow the steps below to enable auto-send."}
+        </p>
+
+        {!ejsConfigured && (
+          <div className="rounded-xl p-4" style={{ background: BG, border: `1px solid ${LINE}` }}>
+            <p className="text-sm font-bold mb-3" style={{ color: INK }}>3-minute setup (free):</p>
+            <ol className="flex flex-col gap-2.5 text-xs" style={{ color: INK_SOFT, lineHeight: 1.5 }}>
+              <li><span className="font-bold" style={{ color: P }}>1.</span> Go to <strong>emailjs.com</strong> and create a free account</li>
+              <li><span className="font-bold" style={{ color: P }}>2.</span> Click <strong>Add New Service</strong> → choose Gmail → connect peakpropertycareca@gmail.com → copy the <strong>Service ID</strong></li>
+              <li><span className="font-bold" style={{ color: P }}>3.</span> Click <strong>Email Templates → Create New</strong>. Set Subject to <code>Receipt – Peak Property Care</code>. In the body use these variables:<br />
+                <code className="block mt-1 p-2.5 rounded-lg text-xs leading-loose" style={{ background: DARK, color: ACCENT_LIGHT, fontFamily: FONT_MONO }}>
+                  To: {"{{to_email}}"}<br />
+                  Client: {"{{to_name}}"}<br />
+                  Date: {"{{date}}"}<br />
+                  Services: {"{{services_list}}"}<br />
+                  Total: {"{{total}}"}<br />
+                  Address: {"{{address}}"}<br />
+                  Notes: {"{{notes}}"}
+                </code>
+                Save and copy the <strong>Template ID</strong>.
+              </li>
+              <li><span className="font-bold" style={{ color: P }}>4.</span> Go to <strong>Account → API Keys</strong> → copy your <strong>Public Key</strong></li>
+              <li><span className="font-bold" style={{ color: P }}>5.</span> In <strong>Netlify → Site configuration → Environment variables</strong>, add these 3 variables:
+                <code className="block mt-1 p-2.5 rounded-lg text-xs leading-loose" style={{ background: DARK, color: ACCENT_LIGHT, fontFamily: FONT_MONO }}>
+                  VITE_EMAILJS_SERVICE_ID = your-service-id<br />
+                  VITE_EMAILJS_TEMPLATE_ID = your-template-id<br />
+                  VITE_EMAILJS_PUBLIC_KEY = your-public-key
+                </code>
+              </li>
+              <li><span className="font-bold" style={{ color: P }}>6.</span> Click <strong>Trigger deploy</strong> in Netlify — done!</li>
+            </ol>
+          </div>
+        )}
+      </div>
+
+      {/* Danger zone */}
+      <div className="card p-5">
+        <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: MUTED }}>Account</p>
+        <button onClick={() => supabase.auth.signOut()} className="flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold" style={{ borderColor: `${RED}30`, color: RED, background: RED_L }}>
+          <LogOut size={14} /> Sign out
+        </button>
+      </div>
     </div>
   );
 }
