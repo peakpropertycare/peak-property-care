@@ -8,12 +8,13 @@ import {
   ClipboardList, Users, DollarSign, TrendingUp, Briefcase,
   Home as HomeIcon, ChevronRight, ChevronLeft, CalendarDays,
   Info, LayoutDashboard, Navigation, Tag, Search as SearchIcon,
-  Zap, Target, Award, BarChart2, Star, ArrowUpRight,
+  Zap, Target, Award, Star, ArrowUpRight,
   FileText, MessageSquare, Copy, Wind, CloudRain, CloudSun,
-  Cloud, Thermometer, Wrench, CheckSquare, Square, Send,
-  Percent, Hash, Layers,
+  Cloud, Thermometer, CheckSquare, Square, Send,
+  Percent, Layers, LogOut, Receipt,
 } from "lucide-react";
 import { storage } from "./lib/storage";
+import { supabase } from "./lib/supabaseClient";
 import logo from "./assets/logo.png";
 
 /* ═══════════════════════════════════════
@@ -63,28 +64,6 @@ const SERVICES = [
   { id: "gutter",   label: "Gutter Cleaning",     icon: Layers,    color: VIOLET },
 ];
 
-/* ── Quote pricing defaults ($/unit) ── */
-const QUOTE_RATES = {
-  windowExt: 10,   // per window exterior
-  windowInt:  5,   // per window add-on interior
-  solar:    250,   // flat per visit
-  pressure: 200,   // flat
-  gutter:   175,   // flat
-};
-
-const PROP_TYPES = [
-  { id: "1story",    label: "1-Story",    windows: 12 },
-  { id: "2story",    label: "2-Story",    windows: 22 },
-  { id: "3story",    label: "3-Story",    windows: 34 },
-  { id: "commercial",label: "Commercial", windows: 50 },
-];
-
-const emptyQuote = {
-  clientName: "", address: "", propType: "2story",
-  windowCount: 22, includeInterior: false,
-  services: ["window"], gutterCleaning: false,
-  notes: "", status: "pending",
-};
 
 /* ── Frequencies ── */
 const FREQUENCIES = [
@@ -131,7 +110,6 @@ const NAV_ITEMS = [
   { id: "clients",   label: "Clients",  icon: Users           },
   { id: "schedule",  label: "Schedule", icon: ClipboardList   },
   { id: "canvass",   label: "Door Map", icon: HomeIcon        },
-  { id: "quotes",    label: "Quotes",   icon: FileText        },
   { id: "finance",   label: "Finance",  icon: DollarSign      },
 ];
 
@@ -191,7 +169,7 @@ function slotsForAppointment(startTime, duration) {
 }
 const TIME_SLOTS = (() => {
   const out = [];
-  for (let m = 6 * 60; m <= 18 * 60; m += 30) out.push(minutesToTime(m));
+  for (let m = 6 * 60; m <= 19 * 60; m += 30) out.push(minutesToTime(m));
   return out;
 })();
 function formatAddress(c) {
@@ -754,8 +732,100 @@ function ClientModal({ form, setForm, mode, onSubmit, onClose, onDelete, clients
   );
 }
 
+/* ================= AUTH SCREEN ================= */
+function AuthScreen() {
+  const [mode, setMode] = useState("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setMessage(null);
+    try {
+      if (mode === "signup") {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        setMessage("Account created! Check your email to confirm, then sign in.");
+        setMode("login");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: `linear-gradient(135deg, ${DARK} 0%, #0C1E38 100%)` }}>
+      <div className="w-full max-w-sm">
+        {/* Branding */}
+        <div className="flex flex-col items-center mb-8">
+          <div style={{ width: 64, height: 64, borderRadius: 18, background: "linear-gradient(135deg, rgba(255,255,255,0.25), rgba(255,255,255,0.1))", border: "1px solid rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", padding: 10, marginBottom: 16, backdropFilter: "blur(8px)" }}>
+            <img src={logo} alt="Peak Property Care" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+          </div>
+          <h1 style={{ fontFamily: FONT_HEAD, fontWeight: 800, color: "white", fontSize: "1.4rem", letterSpacing: "-0.02em" }}>Peak Property Care</h1>
+          <p style={{ color: ACCENT_LIGHT, fontSize: "0.75rem", fontFamily: FONT_MONO, letterSpacing: "0.18em", marginTop: 4 }}>CLIENT HUB · PRO</p>
+        </div>
+
+        {/* Card */}
+        <div className="bg-white rounded-3xl p-8 shadow-2xl">
+          <h2 style={{ fontFamily: FONT_HEAD, fontWeight: 800, color: INK, fontSize: "1.15rem", marginBottom: 6 }}>
+            {mode === "login" ? "Welcome back" : "Create account"}
+          </h2>
+          <p style={{ color: MUTED, fontSize: "0.83rem", marginBottom: 24 }}>
+            {mode === "login" ? "Sign in to access your client hub." : "Get started with your free account."}
+          </p>
+
+          {message && (
+            <div className="rounded-xl px-4 py-3 mb-4 text-sm font-medium" style={{ background: EM_L, color: EMERALD }}>
+              {message}
+            </div>
+          )}
+          {error && (
+            <div className="rounded-xl px-4 py-3 mb-4 text-sm font-medium" style={{ background: RED_L, color: RED }}>
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+            <Field label="Email address">
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" placeholder="you@example.com" style={inputStyle} />
+            </Field>
+            <Field label="Password">
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete={mode === "signup" ? "new-password" : "current-password"} placeholder="••••••••" style={inputStyle} />
+            </Field>
+            <button type="submit" disabled={loading} className="flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white mt-2" style={{ background: loading ? `${P}80` : `linear-gradient(135deg, ${P}, ${P_DEEP})`, boxShadow: `0 4px 16px ${P}40` }}>
+              {loading ? <Loader2 size={15} className="animate-spin" /> : null}
+              {mode === "login" ? "Sign In" : "Create Account"}
+            </button>
+          </form>
+
+          <div className="mt-5 pt-5 border-t text-center" style={{ borderColor: LINE }}>
+            <p className="text-sm" style={{ color: MUTED }}>
+              {mode === "login" ? "Don't have an account?" : "Already have an account?"}
+              {" "}
+              <button onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(null); setMessage(null); }} className="font-bold" style={{ color: P }}>
+                {mode === "login" ? "Sign up" : "Sign in"}
+              </button>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ================= APP ================= */
 export default function App() {
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [clients, setClients] = useState([]);
   const [pins, setPins] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -763,7 +833,6 @@ export default function App() {
   const [page, setPage] = useState("dashboard");
   const [scheduleDate, setScheduleDate] = useState(todayStr());
   const [toasts, setToasts] = useState([]);
-  const [quotes, setQuotes] = useState([]);
 
   function showToast(message, type = "success") {
     const id = genId();
@@ -772,18 +841,13 @@ export default function App() {
   }
 
   useEffect(() => {
-    (async () => {
-      try {
-        const r = await storage.get("quotes");
-        if (r) setQuotes(JSON.parse(r.value));
-      } catch { setQuotes([]); }
-    })();
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, s) => setSession(s));
+    return () => subscription.unsubscribe();
   }, []);
-
-  async function persistQuotes(next) {
-    setQuotes(next);
-    await storage.set("quotes", JSON.stringify(next));
-  }
 
   const [query, setQuery] = useState("");
   const [serviceFilter, setServiceFilter] = useState(null);
@@ -928,11 +992,14 @@ export default function App() {
     });
   }, [clients, query, serviceFilter]);
 
-  const scheduled = useMemo(() => {
-    return clients.filter((c) => c.nextServiceDate).map((c) => ({ ...c, days: daysUntil(c.nextServiceDate) })).sort((a, b) => a.days - b.days);
-  }, [clients]);
-
   const selected = clients.find((c) => c.id === selectedId) || null;
+
+  if (authLoading) return (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${DARK}, #0C1E38)` }}>
+      <Loader2 size={28} className="animate-spin" style={{ color: ACCENT_LIGHT }} />
+    </div>
+  );
+  if (!session) return <AuthScreen />;
 
   return (
     <div style={{ background: BG, fontFamily: FONT_BODY, minHeight: "100vh" }} className="text-slate-800 flex flex-col">
@@ -949,6 +1016,9 @@ export default function App() {
               <AlertTriangle size={10} /> save failed
             </span>
           )}
+          <button onClick={() => supabase.auth.signOut()} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold" style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.55)" }} title="Sign out">
+            <LogOut size={12} /> Sign out
+          </button>
         </div>
       </header>
       {/* Animated gradient accent stripe */}
@@ -967,15 +1037,14 @@ export default function App() {
                 {active && <div className="absolute inset-0 rounded-xl" style={{ background: `radial-gradient(ellipse at left, ${P}20, transparent 70%)` }} />}
                 <Icon size={16} strokeWidth={active ? 2.5 : 2} style={{ position: "relative", zIndex: 1 }} />
                 <span style={{ position: "relative", zIndex: 1 }}>{item.label}</span>
-                {item.id === "quotes" && <span className="ml-auto px-1.5 py-0.5 rounded-full text-xs font-bold" style={{ background: `${VIOLET}30`, color: VIOLET, fontSize: "0.6rem" }}>NEW</span>}
               </button>
             );
           })}
           <div className="mt-auto pt-4 mx-1 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-            <div className="px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.04)" }}>
-              <p className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.35)", fontFamily: FONT_HEAD }}>Peak Property Care</p>
-              <p className="text-xs" style={{ color: "rgba(255,255,255,0.18)", fontFamily: FONT_MONO }}>Client Hub v1.0</p>
-            </div>
+            <button onClick={() => supabase.auth.signOut()} className="flex items-center gap-2 px-3 py-2 rounded-xl w-full" style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.35)" }}>
+              <LogOut size={14} />
+              <span className="text-xs font-bold" style={{ fontFamily: FONT_HEAD }}>Sign out</span>
+            </button>
           </div>
         </aside>
 
@@ -993,7 +1062,7 @@ export default function App() {
               {page === "clients" && (
                 <>
                   <TabHero
-                    icons={[Users, HomeIcon]} from={P} to="#001A99"
+                    icons={[Users, HomeIcon]} from={P} to={P_DEEP}
                     title="Clients" subtitle="Your full client list and service plans."
                     action={<button onClick={openAdd} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-bold text-white shrink-0" style={{ background: "rgba(255,255,255,0.2)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.25)" }}><Plus size={16} /> Add client</button>}
                   />
@@ -1002,25 +1071,19 @@ export default function App() {
               )}
               {page === "schedule" && (
                 <>
-                  <TabHero icons={[CalendarDays, Clock]} from="#E07000" to="#7A2800" title="Schedule" subtitle="Tap an open slot to book an appointment." />
+                  <TabHero icons={[CalendarDays, Clock]} from={P} to={P_DEEP} title="Schedule" subtitle="Click an open slot to book. Booked jobs are blocked by duration." />
                   <ScheduleTab clients={clients} scheduleDate={scheduleDate} setScheduleDate={setScheduleDate} onOpenClient={setSelectedId} onBookSlot={(slot) => openBook(scheduleDate, slot)} />
                 </>
               )}
               {page === "canvass" && (
                 <>
-                  <TabHero icons={[HomeIcon, MapPin]} from="#007A50" to="#003322" title="Door Map" subtitle="Tap the map to drop a pin. Tap a pin to edit." />
+                  <TabHero icons={[HomeIcon, MapPin]} from={P} to={P_DEEP} title="Door Map" subtitle="Tap the map to drop a pin. Tap a pin to edit." />
                   <DoorMap pins={pins} clients={clients} persistPins={persistPins} upsertClientAndPin={upsertClientAndPin} deletePin={deletePin} showToast={showToast} onOpenClient={(id) => { setSelectedId(id); setPage("clients"); }} />
-                </>
-              )}
-              {page === "quotes" && (
-                <>
-                  <TabHero icons={[FileText, DollarSign]} from="#6C3EE8" to="#3A0CA3" title="Quotes & Estimates" subtitle="Build instant quotes and track pending proposals." tag="NEW" />
-                  <QuotesTab quotes={quotes} clients={clients} persistQuotes={persistQuotes} showToast={showToast} upsertClientAndPin={upsertClientAndPin} />
                 </>
               )}
               {page === "finance" && (
                 <>
-                  <TabHero icons={[DollarSign, TrendingUp]} from={EMERALD} to="#004D40" title="Finance" subtitle="Revenue, completed jobs, and projected income." />
+                  <TabHero icons={[DollarSign, TrendingUp]} from={P} to={P_DEEP} title="Finance" subtitle="Revenue, completed jobs, and projected income." />
                   <FinanceTab clients={clients} />
                 </>
               )}
@@ -1086,7 +1149,6 @@ export default function App() {
 function DashboardTab({ clients, pins, onOpenClient, setPage, onAdd }) {
   const today = todayStr();
   const todays = clients.filter((c) => c.nextServiceDate === today).sort((a, b) => (a.nextServiceTime || "").localeCompare(b.nextServiceTime || ""));
-  const followUps = pins.filter((p) => p.statusId === "callback").slice(0, 4);
   const overdue = clients.filter((c) => c.nextServiceDate && daysUntil(c.nextServiceDate) < 0);
   const thisMonth = today.slice(0, 7);
   const lastMonth = (() => { const d = new Date(today + "T00:00:00"); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 7); })();
@@ -1152,36 +1214,13 @@ function DashboardTab({ clients, pins, onOpenClient, setPage, onAdd }) {
           )}
         </div>
 
-        {/* Follow-ups + top clients */}
+        {/* Top clients */}
         <div className="flex flex-col gap-4">
-          <div className="card p-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>Follow-Ups</p>
-              <button onClick={() => setPage("canvass")} className="text-xs font-bold px-2.5 py-1 rounded-lg" style={{ color: AMBER, background: AMB_L }}>Door Map</button>
-            </div>
-            {followUps.length === 0 ? (
-              <div className="flex items-center gap-2 py-2">
-                <Star size={18} style={{ color: EMERALD }} />
-                <p className="text-sm" style={{ color: MUTED }}>No pending call-backs — great!</p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1">
-                {followUps.map((p) => (
-                  <div key={p.id} className="flex items-center gap-2.5 text-sm py-1.5 px-2 rounded-xl">
-                    <span className="anim-pulse-dot flex-shrink-0" style={{ width: 9, height: 9, borderRadius: 999, background: AMBER, display: "inline-block" }} />
-                    <span className="font-medium" style={{ color: INK }}>{p.label || "House"}</span>
-                    {p.notes && <span className="text-xs truncate" style={{ color: MUTED }}>{p.notes}</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
           {topClients.length > 0 && (
             <div className="card p-4">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-sm font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>Top Clients</p>
-                <Award size={15} style={{ color: AMBER }} />
+                <Award size={15} style={{ color: P }} />
               </div>
               <div className="flex flex-col gap-1.5">
                 {topClients.map((c, i) => (
@@ -1198,13 +1237,9 @@ function DashboardTab({ clients, pins, onOpenClient, setPage, onAdd }) {
         </div>
       </div>
 
-      {/* Van checklist */}
-      <div className="mb-4"><VanChecklist /></div>
-
       {/* Action buttons */}
       <div className="flex flex-wrap gap-3">
         <button onClick={onAdd} className="btn-primary flex items-center gap-1.5"><Plus size={16} /> Add Client</button>
-        <button onClick={() => setPage("quotes")} className="btn-ghost flex items-center gap-1.5"><FileText size={15} /> New Quote</button>
         <button onClick={() => setPage("schedule")} className="btn-ghost flex items-center gap-1.5"><CalendarDays size={15} /> Schedule</button>
         <button onClick={() => setPage("canvass")} className="btn-ghost flex items-center gap-1.5"><HomeIcon size={15} /> Door Map</button>
       </div>
@@ -1282,16 +1317,41 @@ function EmptyState({ allCount, onAdd }) {
 }
 
 /* ---------- Schedule tab ---------- */
+const SLOT_H = 52; // px height per 30-min slot
+
 function ScheduleTab({ clients, scheduleDate, setScheduleDate, onOpenClient, onBookSlot }) {
   const dayClients = clients.filter((c) => c.nextServiceDate === scheduleDate);
+
+  // Build occupied map: slot → { client, isStart, numSlots }
   const occupied = {};
   dayClients.forEach((c) => {
     if (!TIME_SLOTS.includes(c.nextServiceTime)) return;
     const slots = slotsForAppointment(c.nextServiceTime, c.duration || 60);
-    slots.forEach((s, i) => { if (!occupied[s]) occupied[s] = { client: c, isStart: i === 0 }; });
+    slots.forEach((s, i) => {
+      if (!occupied[s]) occupied[s] = { client: c, isStart: i === 0, numSlots: slots.length };
+    });
   });
+
+  // Build merged display rows
+  const displayRows = [];
+  let i = 0;
+  while (i < TIME_SLOTS.length) {
+    const slot = TIME_SLOTS[i];
+    const occ = occupied[slot];
+    if (occ && occ.isStart) {
+      displayRows.push({ type: "booked", slot, client: occ.client, numSlots: occ.numSlots });
+      i += occ.numSlots;
+    } else if (occ) {
+      i++; // continuation — skip, already in a booked row
+    } else {
+      displayRows.push({ type: "free", slot });
+      i++;
+    }
+  }
+
   const unslotted = dayClients.filter((c) => !TIME_SLOTS.includes(c.nextServiceTime));
   const heading = new Date(scheduleDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const isToday = scheduleDate === todayStr();
 
   function shiftDay(delta) {
     const d = new Date(scheduleDate + "T00:00:00");
@@ -1299,61 +1359,115 @@ function ScheduleTab({ clients, scheduleDate, setScheduleDate, onOpenClient, onB
     setScheduleDate(d.toISOString().slice(0, 10));
   }
 
+  const bookedCount = dayClients.length;
+  const dayRevenue = dayClients.reduce((s, c) => s + (Number(c.price) || 0), 0);
+
   return (
     <div>
-      <div className="flex items-center justify-between bg-white rounded-xl border p-3 mb-4 shadow-sm" style={{ borderColor: LINE }}>
-        <button onClick={() => shiftDay(-1)} className="p-2 rounded-lg" style={{ color: MUTED }}><ChevronLeft size={18} /></button>
+      {/* Date navigator */}
+      <div className="flex items-center justify-between bg-white rounded-2xl border p-3 mb-3 shadow-sm" style={{ borderColor: LINE }}>
+        <button onClick={() => shiftDay(-1)} className="p-2 rounded-xl hover:bg-slate-100 transition-colors" style={{ color: MUTED }}><ChevronLeft size={18} /></button>
         <div className="text-center">
-          <p className="font-semibold text-sm" style={{ color: INK, fontFamily: FONT_HEAD }}>{heading}</p>
-          <button onClick={() => setScheduleDate(todayStr())} className="text-xs" style={{ color: ACCENT }}>Jump to today</button>
+          <p className="font-bold text-sm" style={{ color: INK, fontFamily: FONT_HEAD }}>{heading}</p>
+          <div className="flex items-center justify-center gap-3 mt-0.5">
+            {!isToday && <button onClick={() => setScheduleDate(todayStr())} className="text-xs font-medium" style={{ color: P }}>← Today</button>}
+            {bookedCount > 0 && <span className="text-xs font-semibold" style={{ color: MUTED }}>{bookedCount} job{bookedCount !== 1 ? "s" : ""}{dayRevenue > 0 ? ` · ${formatMoney(dayRevenue)}` : ""}</span>}
+          </div>
         </div>
-        <button onClick={() => shiftDay(1)} className="p-2 rounded-lg" style={{ color: MUTED }}><ChevronRight size={18} /></button>
+        <button onClick={() => shiftDay(1)} className="p-2 rounded-xl hover:bg-slate-100 transition-colors" style={{ color: MUTED }}><ChevronRight size={18} /></button>
       </div>
 
-      <div className="bg-white rounded-xl border shadow-sm overflow-hidden" style={{ borderColor: LINE }}>
-        {TIME_SLOTS.map((slot) => {
-          const occ = occupied[slot];
-          if (occ && !occ.isStart) {
+      {/* Table */}
+      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden" style={{ borderColor: LINE }}>
+        {/* Header row */}
+        <div className="flex items-center border-b" style={{ borderColor: LINE, background: BG }}>
+          <div className="shrink-0 px-3 py-2.5" style={{ width: 88 }}>
+            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: MUTED }}>Time</span>
+          </div>
+          <div className="flex-1 px-4 py-2.5">
+            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: MUTED }}>Client</span>
+          </div>
+          <div className="shrink-0 px-3 py-2.5 hidden sm:block" style={{ width: 160 }}>
+            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: MUTED }}>Services</span>
+          </div>
+          <div className="shrink-0 px-4 py-2.5" style={{ width: 80 }}>
+            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: MUTED }}>Price</span>
+          </div>
+        </div>
+
+        {/* Rows */}
+        {displayRows.map((row) => {
+          if (row.type === "free") {
             return (
-              <div key={slot} className="flex items-stretch border-b last:border-0" style={{ borderColor: LINE }}>
-                <div className="w-20 shrink-0 flex items-center justify-center text-xs font-medium" style={{ color: MUTED, fontFamily: FONT_MONO, background: BG }}>{formatTime(slot)}</div>
-                <div className="flex-1 flex items-center px-3 py-1.5 text-xs" style={{ color: MUTED, background: `${ACCENT}08` }}>↳ continued — {occ.client.name || "Unnamed client"}</div>
+              <div key={row.slot} className="flex items-stretch border-b last:border-0" style={{ borderColor: LINE, minHeight: SLOT_H }}>
+                <div className="shrink-0 flex items-center justify-center px-3" style={{ width: 88, background: `${BG}99`, fontFamily: FONT_MONO, fontSize: "0.7rem", color: MUTED, borderRight: `1px solid ${LINE}` }}>
+                  {formatTime(row.slot)}
+                </div>
+                <button onClick={() => onBookSlot(row.slot)} className="flex-1 flex items-center gap-2 px-4 text-sm transition-colors hover:bg-blue-50" style={{ color: `${P}90` }}>
+                  <Plus size={13} />
+                  <span>Available — click to book</span>
+                </button>
               </div>
             );
           }
+
+          // Booked row
+          const c = row.client;
+          const rowH = row.numSlots * SLOT_H;
+          const endMin = timeToMinutes(row.slot) + (c.duration || 60);
+          const endLabel = formatTime(minutesToTime(endMin));
+
           return (
-            <div key={slot} className="flex items-stretch border-b last:border-0" style={{ borderColor: LINE }}>
-              <div className="w-20 shrink-0 flex items-center justify-center text-xs font-medium" style={{ color: MUTED, fontFamily: FONT_MONO, background: BG }}>{formatTime(slot)}</div>
-              {occ ? (
-                <button onClick={() => onOpenClient(occ.client.id)} className="flex-1 text-left px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-slate-50">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Avatar name={occ.client.name} size={28} />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate" style={{ color: INK }}>{occ.client.name || "Unnamed client"}</p>
-                      <p className="text-xs truncate" style={{ color: MUTED }}>{formatAddress(occ.client) || "No address"} · {occ.client.duration || 60} min</p>
-                    </div>
+            <div key={row.slot} className="flex items-stretch border-b last:border-0" style={{ borderColor: LINE, minHeight: rowH }}>
+              {/* Time column */}
+              <div className="shrink-0 flex flex-col items-start justify-start px-3 pt-3 gap-0.5" style={{ width: 88, background: `${BG}99`, fontFamily: FONT_MONO, borderRight: `1px solid ${LINE}` }}>
+                <span className="font-bold" style={{ color: P, fontSize: "0.72rem" }}>{formatTime(row.slot)}</span>
+                <span style={{ color: MUTED, fontSize: "0.62rem" }}>→ {endLabel}</span>
+                <span className="mt-1 rounded-full px-1.5 py-0.5" style={{ background: `${P}14`, color: P, fontSize: "0.6rem", fontWeight: 700 }}>{c.duration || 60}m</span>
+              </div>
+
+              {/* Client column */}
+              <button onClick={() => onOpenClient(c.id)} className="flex-1 flex items-center gap-3 px-4 text-left hover:bg-slate-50 transition-colors min-w-0" style={{ borderLeft: `3px solid ${P}`, background: `${P}03` }}>
+                <Avatar name={c.name} size={32} />
+                <div className="min-w-0">
+                  <p className="font-bold text-sm truncate" style={{ color: INK, fontFamily: FONT_HEAD }}>{c.name || "Unnamed client"}</p>
+                  <p className="text-xs truncate mt-0.5" style={{ color: MUTED }}>{formatAddress(c) || "No address"}</p>
+                  {/* Services visible on mobile */}
+                  <div className="flex flex-wrap gap-1 mt-1 sm:hidden">
+                    {c.services.map((s) => <ServiceBadge key={s} id={s} />)}
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {occ.client.services.map((s) => <ServiceBadge key={s} id={s} />)}
-                    {occ.client.price && <span className="text-xs font-semibold" style={{ color: GREEN, fontFamily: FONT_MONO }}>{formatMoney(occ.client.price)}</span>}
-                  </div>
-                </button>
-              ) : (
-                <button onClick={() => onBookSlot(slot)} className="flex-1 text-left px-3 py-2.5 text-sm" style={{ color: ACCENT }}>+ Available — tap to book</button>
-              )}
+                </div>
+              </button>
+
+              {/* Services column — desktop only */}
+              <div className="shrink-0 hidden sm:flex flex-col items-start justify-center gap-1 px-3" style={{ width: 160, borderLeft: `1px solid ${LINE}` }}>
+                {c.services.map((s) => <ServiceBadge key={s} id={s} />)}
+              </div>
+
+              {/* Price column */}
+              <div className="shrink-0 flex items-center justify-end px-4" style={{ width: 80, borderLeft: `1px solid ${LINE}` }}>
+                {c.price
+                  ? <span className="font-black text-sm" style={{ color: EMERALD, fontFamily: FONT_MONO }}>{formatMoney(c.price)}</span>
+                  : <span style={{ color: MUTED, fontSize: "0.75rem" }}>—</span>}
+              </div>
             </div>
           );
         })}
       </div>
 
+      {/* Unslotted clients (no time set or time outside slots) */}
       {unslotted.length > 0 && (
         <div className="mt-4">
-          <p className="text-xs font-medium mb-2" style={{ color: MUTED }}>OTHER TIMES TODAY</p>
+          <p className="text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: MUTED }}>No time set</p>
           <div className="flex flex-col gap-2">
             {unslotted.map((c) => (
-              <button key={c.id} onClick={() => onOpenClient(c.id)} className="bg-white rounded-lg border px-3 py-2 text-left text-sm flex items-center justify-between" style={{ borderColor: LINE }}>
-                <span style={{ color: INK }}>{c.name || "Unnamed client"}{c.nextServiceTime ? ` · ${formatTime(c.nextServiceTime)}` : ""}</span>
-                <span style={{ color: MUTED }} className="text-xs">{formatAddress(c)}</span>
+              <button key={c.id} onClick={() => onOpenClient(c.id)} className="bg-white rounded-xl border px-4 py-3 text-left flex items-center gap-3 hover:bg-slate-50 transition-colors shadow-sm" style={{ borderColor: LINE }}>
+                <Avatar name={c.name} size={30} />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm truncate" style={{ color: INK }}>{c.name || "Unnamed client"}</p>
+                  <p className="text-xs truncate" style={{ color: MUTED }}>{formatAddress(c)}</p>
+                </div>
+                <div className="flex gap-1 shrink-0">{c.services.map((s) => <ServiceBadge key={s} id={s} />)}</div>
               </button>
             ))}
           </div>
@@ -1561,7 +1675,7 @@ function DetailDrawer({ client, onClose, onEdit, onDelete, onMark, noteDraft, se
         </div>
 
         <div className="mt-5 pt-5 border-t" style={{ borderColor: LINE }}>
-          <p className="text-xs font-medium mb-2" style={{ color: MUTED }}>MARK A SERVICE COMPLETE</p>
+          <p className="text-xs font-bold mb-2 tracking-wide uppercase" style={{ color: MUTED }}>Mark Job Complete</p>
           <div className="flex gap-2">
             <div className="flex items-center rounded-lg border px-2" style={{ borderColor: LINE }}>
               <span className="text-sm" style={{ color: MUTED }}>$</span>
@@ -1569,7 +1683,17 @@ function DetailDrawer({ client, onClose, onEdit, onDelete, onMark, noteDraft, se
             </div>
             <input value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} placeholder="Note (optional)" className="text-sm rounded-lg border px-3 py-2 flex-1" style={{ borderColor: LINE }} />
           </div>
-          <button onClick={onMark} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-white whitespace-nowrap mt-2 w-full" style={{ background: GREEN }}><CheckCircle2 size={14} /> Mark serviced</button>
+          <div className="flex gap-2 mt-2">
+            <button onClick={onMark} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-white whitespace-nowrap flex-1" style={{ background: GREEN }}><CheckCircle2 size={14} /> Mark serviced</button>
+            {client.email && (
+              <button onClick={() => sendReceiptEmail(client, priceDraft, noteDraft)} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap" style={{ background: P_LIGHT, color: P }}>
+                <Receipt size={14} /> Send receipt
+              </button>
+            )}
+          </div>
+          {!client.email && (
+            <p className="text-xs mt-1.5" style={{ color: MUTED }}>Add client email to enable receipts.</p>
+          )}
         </div>
 
         <PhotosSection clientId={client.id} />
@@ -1584,16 +1708,21 @@ function DetailDrawer({ client, onClose, onEdit, onDelete, onMark, noteDraft, se
           ) : (
             <div className="flex flex-col gap-3">
               {client.history.map((h, i) => (
-                <div key={i} className="flex gap-3 text-sm">
-                  <Clock size={14} className="mt-0.5 shrink-0" style={{ color: MUTED }} />
-                  <div>
+                <div key={i} className="rounded-xl border p-3" style={{ borderColor: LINE }}>
+                  <div className="flex items-center justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2">
-                      <p style={{ color: INK }}>{formatDate(h.date)}</p>
-                      {!!h.price && <span className="text-xs font-semibold" style={{ color: GREEN, fontFamily: FONT_MONO }}>{formatMoney(h.price)}</span>}
+                      <Clock size={13} style={{ color: MUTED }} />
+                      <p className="text-sm font-semibold" style={{ color: INK }}>{formatDate(h.date)}</p>
+                      {!!h.price && <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ color: EMERALD, background: EM_L, fontFamily: FONT_MONO }}>{formatMoney(h.price)}</span>}
                     </div>
-                    <div className="flex flex-wrap gap-1 mt-1">{(h.services || []).map((s) => <ServiceBadge key={s} id={s} />)}</div>
-                    {h.notes && <p className="text-xs mt-1" style={{ color: MUTED }}>{h.notes}</p>}
+                    {client.email && (
+                      <button onClick={() => sendReceiptEmail(client, h.price, h.notes, h.date, h.services)} className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg" style={{ background: P_LIGHT, color: P }}>
+                        <Receipt size={11} /> Receipt
+                      </button>
+                    )}
                   </div>
+                  <div className="flex flex-wrap gap-1">{(h.services || []).map((s) => <ServiceBadge key={s} id={s} />)}</div>
+                  {h.notes && <p className="text-xs mt-1.5" style={{ color: MUTED }}>{h.notes}</p>}
                 </div>
               ))}
             </div>
@@ -1602,6 +1731,44 @@ function DetailDrawer({ client, onClose, onEdit, onDelete, onMark, noteDraft, se
       </div>
     </div>
   );
+}
+
+function sendReceiptEmail(client, price, notes, date, services) {
+  const d = date || todayStr();
+  const svcList = (services || client.services || []).map((s) => ({ window: "Window Cleaning", solar: "Solar Panel Cleaning", pressure: "Pressure Washing", gutter: "Gutter Cleaning" })[s] || s);
+  const addr = formatAddress(client);
+  const amt = formatMoney(Number(price) || 0);
+  const dateLabel = new Date(d + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+
+  const body = [
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "  RECEIPT — PEAK PROPERTY CARE",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "",
+    `Date:     ${dateLabel}`,
+    `Client:   ${client.name || ""}`,
+    addr ? `Address:  ${addr}` : "",
+    "",
+    "SERVICES PROVIDED:",
+    ...svcList.map((s) => `  ✓ ${s}`),
+    "",
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    `TOTAL PAID:    ${amt}`,
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    "",
+    notes ? `Notes: ${notes}` : "",
+    "",
+    "Thank you for choosing Peak Property Care!",
+    "We appreciate your business.",
+    "",
+    "──────────────────────────────────",
+    "Peak Property Care",
+    "peakpropertycareca@gmail.com",
+    "──────────────────────────────────",
+  ].filter((l) => l !== undefined).join("\n");
+
+  const subject = `Receipt – Peak Property Care – ${dateLabel}`;
+  window.open(`mailto:${encodeURIComponent(client.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, "_blank");
 }
 
 /* ---------- Door Map ---------- */
@@ -1804,253 +1971,6 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin, sh
           </div>
         </div>,
         document.body
-      )}
-    </div>
-  );
-}
-
-/* ---------- Quotes tab ---------- */
-function calcQuoteTotal(q) {
-  let t = 0;
-  if (q.services.includes("window")) {
-    t += q.windowCount * QUOTE_RATES.windowExt;
-    if (q.includeInterior) t += q.windowCount * QUOTE_RATES.windowInt;
-  }
-  if (q.services.includes("solar"))    t += QUOTE_RATES.solar;
-  if (q.services.includes("pressure")) t += QUOTE_RATES.pressure;
-  if (q.services.includes("gutter"))   t += QUOTE_RATES.gutter;
-  return t;
-}
-
-const QUOTE_STATUS_COLORS = { pending: AMBER, sent: P, accepted: EMERALD, declined: RED };
-
-function QuotesTab({ quotes, clients, persistQuotes, showToast, upsertClientAndPin }) {
-  const [draft, setDraft] = useState({ ...emptyQuote });
-  const [showBuilder, setShowBuilder] = useState(false);
-  const [rates, setRates] = useState(() => {
-    try { const r = localStorage.getItem("quoteRates"); return r ? JSON.parse(r) : QUOTE_RATES; } catch { return QUOTE_RATES; }
-  });
-  const [showRates, setShowRates] = useState(false);
-
-  function saveRates(newRates) {
-    setRates(newRates);
-    localStorage.setItem("quoteRates", JSON.stringify(newRates));
-  }
-
-  function calcTotal(q) {
-    let t = 0;
-    if (q.services.includes("window")) {
-      t += q.windowCount * rates.windowExt;
-      if (q.includeInterior) t += q.windowCount * rates.windowInt;
-    }
-    if (q.services.includes("solar"))    t += rates.solar;
-    if (q.services.includes("pressure")) t += rates.pressure;
-    if (q.services.includes("gutter"))   t += rates.gutter;
-    return t;
-  }
-
-  function saveQuote() {
-    const quote = { ...draft, id: genId(), createdAt: new Date().toISOString(), total: calcTotal(draft), status: "pending" };
-    persistQuotes([quote, ...quotes]);
-    showToast(`Quote saved · ${formatMoney(quote.total)}`);
-    setDraft({ ...emptyQuote });
-    setShowBuilder(false);
-  }
-
-  function bookFromQuote(q) {
-    upsertClientAndPin({ name: q.clientName, street: q.address, services: q.services, price: q.total, frequency: "one-time", nextServiceDate: "" }, null);
-    persistQuotes(quotes.map((x) => x.id === q.id ? { ...x, status: "accepted" } : x));
-    showToast("Booked! Client added to your roster.");
-  }
-
-  function updateStatus(id, status) {
-    persistQuotes(quotes.map((q) => q.id === id ? { ...q, status } : q));
-  }
-
-  function deleteQuote(id) {
-    persistQuotes(quotes.filter((q) => q.id !== id));
-  }
-
-  const total = draft.services.length ? calcTotal(draft) : 0;
-  const pendingRevenue = quotes.filter((q) => q.status === "pending" || q.status === "sent").reduce((s, q) => s + (q.total || 0), 0);
-  const acceptedRevenue = quotes.filter((q) => q.status === "accepted").reduce((s, q) => s + (q.total || 0), 0);
-
-  return (
-    <div className="anim-fade-up" style={{ fontFamily: FONT_BODY }}>
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
-        <StatCard icon={FileText}    label="Total Quotes"     value={quotes.length}               accent={VIOLET} sub="All-time" />
-        <StatCard icon={Clock}       label="Pending Revenue"  value={formatMoney(pendingRevenue)}  accent={AMBER}  sub="Quotes not yet accepted" />
-        <StatCard icon={CheckCircle2} label="Won Revenue"    value={formatMoney(acceptedRevenue)} accent={EMERALD} sub="Accepted quotes" />
-      </div>
-
-      {/* Pricing rates config */}
-      <div className="card p-4 mb-4">
-        <button onClick={() => setShowRates((s) => !s)} className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-2">
-            <Percent size={15} style={{ color: VIOLET }} />
-            <p className="text-sm font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>My Pricing Rates</p>
-          </div>
-          <ChevronRight size={15} style={{ color: MUTED, transform: showRates ? "rotate(90deg)" : "none", transition: "transform 0.2s" }} />
-        </button>
-        {showRates && (
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            {[
-              { key: "windowExt", label: "Window ext. ($/window)" },
-              { key: "windowInt", label: "Window int. add-on ($/window)" },
-              { key: "solar",     label: "Solar panels (flat $)" },
-              { key: "pressure",  label: "Pressure wash (flat $)" },
-              { key: "gutter",    label: "Gutter cleaning (flat $)" },
-            ].map(({ key, label }) => (
-              <Field key={key} label={label}>
-                <input type="number" value={rates[key]} onChange={(e) => saveRates({ ...rates, [key]: Number(e.target.value) || 0 })} style={inputStyle} min={0} />
-              </Field>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Quote builder */}
-      {!showBuilder ? (
-        <button onClick={() => setShowBuilder(true)} className="btn-primary flex items-center gap-2 mb-5 w-full justify-center py-3">
-          <Plus size={18} /> Build a New Quote
-        </button>
-      ) : (
-        <div className="card p-5 mb-5 anim-slide-up">
-          <div className="flex items-center justify-between mb-4">
-            <p className="font-black text-base" style={{ color: INK, fontFamily: FONT_HEAD }}>New Quote</p>
-            <button onClick={() => setShowBuilder(false)}><X size={16} /></button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-            <Field label="Client name">
-              <input value={draft.clientName} onChange={(e) => setDraft((d) => ({ ...d, clientName: e.target.value }))} placeholder="e.g. John Smith" style={inputStyle} />
-            </Field>
-            <Field label="Property address">
-              <input value={draft.address} onChange={(e) => setDraft((d) => ({ ...d, address: e.target.value }))} placeholder="123 Main St" style={inputStyle} />
-            </Field>
-          </div>
-
-          <Field label="Property type">
-            <div className="flex flex-wrap gap-2 mt-1">
-              {PROP_TYPES.map((pt) => (
-                <button key={pt.id} type="button"
-                  onClick={() => setDraft((d) => ({ ...d, propType: pt.id, windowCount: pt.windows }))}
-                  className="rounded-xl border px-3 py-2 text-sm font-semibold transition-all"
-                  style={{ borderColor: draft.propType === pt.id ? P : LINE, background: draft.propType === pt.id ? P_LIGHT : "white", color: draft.propType === pt.id ? P : MUTED }}>
-                  {pt.label}
-                  <span className="block text-xs font-normal opacity-70">~{pt.windows} windows</span>
-                </button>
-              ))}
-            </div>
-          </Field>
-
-          <div className="mt-4">
-            <Field label="Services included">
-              <div className="flex flex-wrap gap-2 mt-1">
-                {SERVICES.map((s) => {
-                  const active = draft.services.includes(s.id);
-                  const Icon = s.icon;
-                  return (
-                    <button key={s.id} type="button"
-                      onClick={() => setDraft((d) => ({ ...d, services: active ? d.services.filter((x) => x !== s.id) : [...d.services, s.id] }))}
-                      className="flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-semibold transition-all"
-                      style={{ borderColor: active ? s.color : LINE, background: active ? `${s.color}14` : "white", color: active ? s.color : MUTED }}>
-                      <Icon size={14} />{s.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </Field>
-          </div>
-
-          {draft.services.includes("window") && (
-            <div className="mt-4 grid grid-cols-2 gap-4">
-              <Field label="Window count">
-                <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => setDraft((d) => ({ ...d, windowCount: Math.max(1, d.windowCount - 1) }))}
-                    className="w-9 h-9 rounded-xl border flex items-center justify-center text-lg font-bold" style={{ borderColor: LINE, color: P }}>−</button>
-                  <span className="flex-1 text-center font-black text-xl" style={{ color: INK, fontFamily: FONT_MONO }}>{draft.windowCount}</span>
-                  <button type="button" onClick={() => setDraft((d) => ({ ...d, windowCount: d.windowCount + 1 }))}
-                    className="w-9 h-9 rounded-xl border flex items-center justify-center text-lg font-bold" style={{ borderColor: LINE, color: P }}>+</button>
-                </div>
-              </Field>
-              <Field label="Interior windows?">
-                <button type="button" onClick={() => setDraft((d) => ({ ...d, includeInterior: !d.includeInterior }))}
-                  className="flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all h-10"
-                  style={{ borderColor: draft.includeInterior ? P : LINE, background: draft.includeInterior ? P_LIGHT : "white", color: draft.includeInterior ? P : MUTED }}>
-                  {draft.includeInterior ? <CheckSquare size={15} /> : <Square size={15} />}
-                  +{formatMoney(draft.windowCount * rates.windowInt)}
-                </button>
-              </Field>
-            </div>
-          )}
-
-          <Field label="Notes (optional)">
-            <textarea value={draft.notes} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} rows={2} style={{ ...inputStyle, resize: "vertical", marginTop: 4 }} placeholder="Access notes, special requests…" />
-          </Field>
-
-          {/* Price breakdown */}
-          <div className="mt-4 rounded-2xl p-4" style={{ background: `linear-gradient(135deg, ${P}08, ${CYAN}06)`, border: `1px solid ${P}20` }}>
-            <p className="text-xs font-bold mb-2 uppercase tracking-wide" style={{ color: MUTED }}>Price Breakdown</p>
-            {draft.services.includes("window") && <>
-              <div className="flex justify-between text-sm mb-1"><span style={{ color: INK_SOFT }}>Window ext. ({draft.windowCount}×${rates.windowExt})</span><span className="font-mono font-bold" style={{ color: INK }}>{formatMoney(draft.windowCount * rates.windowExt)}</span></div>
-              {draft.includeInterior && <div className="flex justify-between text-sm mb-1"><span style={{ color: INK_SOFT }}>Interior add-on ({draft.windowCount}×${rates.windowInt})</span><span className="font-mono font-bold" style={{ color: INK }}>{formatMoney(draft.windowCount * rates.windowInt)}</span></div>}
-            </>}
-            {draft.services.includes("solar")    && <div className="flex justify-between text-sm mb-1"><span style={{ color: INK_SOFT }}>Solar panel cleaning</span><span className="font-mono font-bold" style={{ color: INK }}>{formatMoney(rates.solar)}</span></div>}
-            {draft.services.includes("pressure") && <div className="flex justify-between text-sm mb-1"><span style={{ color: INK_SOFT }}>Pressure washing</span><span className="font-mono font-bold" style={{ color: INK }}>{formatMoney(rates.pressure)}</span></div>}
-            {draft.services.includes("gutter")   && <div className="flex justify-between text-sm mb-1"><span style={{ color: INK_SOFT }}>Gutter cleaning</span><span className="font-mono font-bold" style={{ color: INK }}>{formatMoney(rates.gutter)}</span></div>}
-            <div className="flex justify-between items-center mt-3 pt-3 border-t" style={{ borderColor: `${P}20` }}>
-              <span className="font-black" style={{ color: INK, fontFamily: FONT_HEAD }}>Total</span>
-              <span className="text-2xl font-black" style={{ color: EMERALD, fontFamily: FONT_MONO }}>{formatMoney(total)}</span>
-            </div>
-          </div>
-
-          <div className="flex gap-2 mt-4">
-            <button onClick={() => setShowBuilder(false)} className="btn-ghost flex-1">Cancel</button>
-            <button onClick={saveQuote} disabled={!draft.services.length} className="btn-primary flex-1 flex items-center justify-center gap-1.5">
-              <CheckCircle2 size={15} /> Save Quote
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Saved quotes list */}
-      {quotes.length === 0 ? (
-        <div className="card flex flex-col items-center py-14 gap-3">
-          <div className="rounded-2xl p-4" style={{ background: VIO_L }}><FileText size={30} style={{ color: VIOLET }} /></div>
-          <p className="font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>No quotes yet</p>
-          <p className="text-sm text-center max-w-xs" style={{ color: MUTED }}>Build your first quote above — it only takes 30 seconds.</p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {quotes.map((q) => (
-            <div key={q.id} className="card p-4">
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <div>
-                  <p className="font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>{q.clientName || "Unnamed client"}</p>
-                  {q.address && <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: MUTED }}><MapPin size={10} />{q.address}</p>}
-                </div>
-                <div className="flex flex-col items-end gap-1.5">
-                  <span className="text-xl font-black" style={{ color: EMERALD, fontFamily: FONT_MONO }}>{formatMoney(q.total)}</span>
-                  <span className="pill" style={{ background: `${QUOTE_STATUS_COLORS[q.status]}18`, color: QUOTE_STATUS_COLORS[q.status], border: `1px solid ${QUOTE_STATUS_COLORS[q.status]}30` }}>{q.status}</span>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-1 mb-3">
-                {(q.services || []).map((s) => <ServiceBadge key={s} id={s} />)}
-                {q.notes && <span className="text-xs italic" style={{ color: MUTED }}>{q.notes}</span>}
-              </div>
-              <div className="flex items-center gap-2 pt-3 border-t" style={{ borderColor: LINE }}>
-                <span className="text-xs" style={{ color: MUTED }}>Created {formatDate(q.createdAt?.slice(0, 10))}</span>
-                <div className="flex gap-1.5 ml-auto flex-wrap justify-end">
-                  {q.status === "pending" && <button onClick={() => updateStatus(q.id, "sent")} className="text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1" style={{ background: P_LIGHT, color: P }}><Send size={11} /> Mark Sent</button>}
-                  {(q.status === "pending" || q.status === "sent") && <button onClick={() => bookFromQuote(q)} className="text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1" style={{ background: EM_L, color: EMERALD }}><CheckCircle2 size={11} /> Book</button>}
-                  {q.status !== "declined" && <button onClick={() => updateStatus(q.id, "declined")} className="text-xs font-bold px-2.5 py-1 rounded-lg" style={{ background: RED_L, color: RED }}>Decline</button>}
-                  <button onClick={() => deleteQuote(q.id)} className="text-xs font-bold px-2.5 py-1 rounded-lg" style={{ background: `${MUTED}12`, color: MUTED }}><Trash2 size={11} /></button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
       )}
     </div>
   );
