@@ -208,6 +208,12 @@ function dueText(days) {
 function normPhone(p) {
   return (p || "").replace(/\D/g, "");
 }
+function formatPhoneInput(raw) {
+  const d = raw.replace(/\D/g, "").slice(0, 10);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
+  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+}
 function normStr(s) {
   return (s || "").trim().toLowerCase();
 }
@@ -627,7 +633,7 @@ function ClientFieldsForm({ form, setForm, compact, clients }) {
       )}
       <Field label="Name"><input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} style={inputStyle} /></Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Phone"><input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} style={inputStyle} /></Field>
+        <Field label="Phone"><input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: formatPhoneInput(e.target.value) }))} placeholder="(555) 555-5555" inputMode="tel" style={inputStyle} /></Field>
         <Field label="Email"><input value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} style={inputStyle} /></Field>
       </div>
       <Field label="Street address"><input value={form.street} onChange={(e) => setForm((f) => ({ ...f, street: e.target.value }))} style={inputStyle} /></Field>
@@ -735,11 +741,22 @@ function ClientModal({ form, setForm, mode, onSubmit, onClose, onDelete, clients
 /* ================= AUTH SCREEN ================= */
 function AuthScreen() {
   const [mode, setMode] = useState("login");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [stayLoggedIn, setStayLoggedIn] = useState(true);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
+
+  function switchMode(m) {
+    setMode(m);
+    setError(null);
+    setMessage(null);
+    setFirstName(""); setLastName(""); setPhone(""); setEmail(""); setPassword("");
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -748,13 +765,23 @@ function AuthScreen() {
     setMessage(null);
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({ email, password });
+        if (!firstName.trim() || !lastName.trim()) throw new Error("Please enter your first and last name.");
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { first_name: firstName.trim(), last_name: lastName.trim(), phone: phone.trim() },
+          },
+        });
         if (error) throw error;
         setMessage("Account created! Check your email to confirm, then sign in.");
-        setMode("login");
+        switchMode("login");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        if (!stayLoggedIn) {
+          window.addEventListener("beforeunload", () => supabase.auth.signOut(), { once: true });
+        }
       }
     } catch (err) {
       setError(err.message);
@@ -763,7 +790,7 @@ function AuthScreen() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: `linear-gradient(135deg, ${DARK} 0%, #0C1E38 100%)` }}>
+    <div className="min-h-screen flex items-center justify-center px-4 py-8" style={{ background: `linear-gradient(135deg, ${DARK} 0%, #0C1E38 100%)` }}>
       <div className="w-full max-w-sm">
         {/* Branding */}
         <div className="flex flex-col items-center mb-8">
@@ -777,10 +804,10 @@ function AuthScreen() {
         {/* Card */}
         <div className="bg-white rounded-3xl p-8 shadow-2xl">
           <h2 style={{ fontFamily: FONT_HEAD, fontWeight: 800, color: INK, fontSize: "1.15rem", marginBottom: 6 }}>
-            {mode === "login" ? "Welcome back" : "Create account"}
+            {mode === "login" ? "Welcome back" : "Create your account"}
           </h2>
-          <p style={{ color: MUTED, fontSize: "0.83rem", marginBottom: 24 }}>
-            {mode === "login" ? "Sign in to access your client hub." : "Get started with your free account."}
+          <p style={{ color: MUTED, fontSize: "0.83rem", marginBottom: 20 }}>
+            {mode === "login" ? "Sign in to access your client hub." : "Fill in your details to get started."}
           </p>
 
           {message && (
@@ -795,13 +822,47 @@ function AuthScreen() {
           )}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+            {mode === "signup" && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="First name">
+                    <input value={firstName} onChange={(e) => setFirstName(e.target.value)} required autoComplete="given-name" placeholder="John" style={inputStyle} />
+                  </Field>
+                  <Field label="Last name">
+                    <input value={lastName} onChange={(e) => setLastName(e.target.value)} required autoComplete="family-name" placeholder="Smith" style={inputStyle} />
+                  </Field>
+                </div>
+                <Field label="Phone number">
+                  <input value={phone} onChange={(e) => setPhone(formatPhoneInput(e.target.value))} autoComplete="tel" placeholder="(555) 555-5555" inputMode="tel" style={inputStyle} />
+                </Field>
+              </>
+            )}
             <Field label="Email address">
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" placeholder="you@example.com" style={inputStyle} />
             </Field>
-            <Field label="Password">
+            <Field label={mode === "signup" ? "Create a password" : "Password"}>
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete={mode === "signup" ? "new-password" : "current-password"} placeholder="••••••••" style={inputStyle} />
             </Field>
-            <button type="submit" disabled={loading} className="flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white mt-2" style={{ background: loading ? `${P}80` : `linear-gradient(135deg, ${P}, ${P_DEEP})`, boxShadow: `0 4px 16px ${P}40` }}>
+
+            {mode === "login" && (
+              <label className="flex items-center gap-2.5 cursor-pointer select-none mt-1">
+                <div
+                  onClick={() => setStayLoggedIn((v) => !v)}
+                  style={{
+                    width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+                    border: `2px solid ${stayLoggedIn ? P : LINE}`,
+                    background: stayLoggedIn ? P : "white",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: "pointer", transition: "all 0.15s",
+                  }}
+                >
+                  {stayLoggedIn && <CheckCircle2 size={11} color="white" strokeWidth={3} />}
+                </div>
+                <span style={{ fontSize: "0.83rem", color: INK }}>Stay logged in</span>
+              </label>
+            )}
+
+            <button type="submit" disabled={loading} className="flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white mt-1" style={{ background: loading ? `${P}80` : `linear-gradient(135deg, ${P}, ${P_DEEP})`, boxShadow: `0 4px 16px ${P}40` }}>
               {loading ? <Loader2 size={15} className="animate-spin" /> : null}
               {mode === "login" ? "Sign In" : "Create Account"}
             </button>
@@ -811,7 +872,7 @@ function AuthScreen() {
             <p className="text-sm" style={{ color: MUTED }}>
               {mode === "login" ? "Don't have an account?" : "Already have an account?"}
               {" "}
-              <button onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(null); setMessage(null); }} className="font-bold" style={{ color: P }}>
+              <button onClick={() => switchMode(mode === "login" ? "signup" : "login")} className="font-bold" style={{ color: P }}>
                 {mode === "login" ? "Sign up" : "Sign in"}
               </button>
             </p>
@@ -1768,7 +1829,8 @@ function sendReceiptEmail(client, price, notes, date, services) {
   ].filter((l) => l !== undefined).join("\n");
 
   const subject = `Receipt – Peak Property Care – ${dateLabel}`;
-  window.open(`mailto:${encodeURIComponent(client.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, "_blank");
+  const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(client.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.open(gmailUrl, "_blank");
 }
 
 /* ---------- Door Map ---------- */
