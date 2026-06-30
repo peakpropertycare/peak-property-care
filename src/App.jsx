@@ -976,9 +976,12 @@ export default function App() {
   function upsertClientAndPin(clientInfo, pinContext) {
     const match = clientInfo.id ? clients.find((c) => c.id === clientInfo.id) : findMatch(clients, clientInfo);
     const clientId = match ? match.id : genId();
+    const meta = session?.user?.user_metadata || {};
+    const bookerName = [meta.first_name, meta.last_name].filter(Boolean).join(" ") || session?.user?.email?.split("@")[0] || "Unknown";
+    const schedStamp = clientInfo.nextServiceDate ? { scheduledBy: bookerName, scheduledById: session?.user?.id } : {};
     const nextClients = match
-      ? clients.map((c) => (c.id === match.id ? { ...c, ...clientInfo, id: c.id, history: c.history || [] } : c))
-      : [...clients, { ...emptyForm, ...clientInfo, id: clientId, history: [] }];
+      ? clients.map((c) => (c.id === match.id ? { ...c, ...clientInfo, ...schedStamp, id: c.id, history: c.history || [] } : c))
+      : [...clients, { ...emptyForm, ...clientInfo, ...schedStamp, id: clientId, history: [] }];
 
     const hasAppt = !!clientInfo.nextServiceDate;
     const label = clientInfo.name || clientInfo.street || "Client";
@@ -1038,9 +1041,9 @@ export default function App() {
     const today = todayStr();
     const note = noteDrafts[client.id] || "";
     const price = getPriceDraft(client);
-    const meta = session?.user?.user_metadata || {};
-    const sellerName = [meta.first_name, meta.last_name].filter(Boolean).join(" ") || session?.user?.email?.split("@")[0] || "Unknown";
-    const entry = { date: today, services: client.services, notes: note, price: Number(price) || 0, bookedBy: sellerName, bookedById: session?.user?.id };
+    const sellerName = client.scheduledBy || "Unknown";
+    const sellerId = client.scheduledById;
+    const entry = { date: today, services: client.services, notes: note, price: Number(price) || 0, bookedBy: sellerName, bookedById: sellerId };
     const nextDate = client.frequency === "one-time" ? null : addInterval(today, client.frequency);
     const updated = { ...client, history: [entry, ...(client.history || [])], nextServiceDate: nextDate, nextServiceTime: nextDate ? client.nextServiceTime : "" };
     persist(clients.map((c) => (c.id === client.id ? updated : c)), `Job logged${price ? ` · ${formatMoney(price)}` : ""}`);
@@ -1254,13 +1257,13 @@ function DashboardTab({ clients, pins, onOpenClient, setPage, onAdd, session }) 
   const upcomingCount = clients.filter((c) => c.nextServiceDate && daysUntil(c.nextServiceDate) >= 0).length;
   const recurringCount = clients.filter((c) => c.frequency && c.frequency !== "one-time").length;
   const currentUserName = [session?.user?.user_metadata?.first_name, session?.user?.user_metadata?.last_name].filter(Boolean).join(" ") || session?.user?.email?.split("@")[0];
+  const [lbView, setLbView] = useState("monthly");
 
-  // Top Sellers: aggregate revenue by bookedBy field in job history
-  const leaderboard = useMemo(() => {
+  function buildLeaderboard(filterFn) {
     const totals = {};
     clients.forEach((c) => {
       (c.history || []).forEach((h) => {
-        if (!h.bookedBy) return;
+        if (!h.bookedBy || !filterFn(h)) return;
         totals[h.bookedBy] = (totals[h.bookedBy] || 0) + (Number(h.price) || 0);
       });
     });
@@ -1268,7 +1271,11 @@ function DashboardTab({ clients, pins, onOpenClient, setPage, onAdd, session }) 
       .map(([name, total]) => ({ name, total }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 5);
-  }, [clients]);
+  }
+
+  const monthlyLb  = useMemo(() => buildLeaderboard((h) => h.date?.slice(0, 7) === thisMonth), [clients, thisMonth]);
+  const alltimeLb  = useMemo(() => buildLeaderboard(() => true), [clients]);
+  const leaderboard = lbView === "monthly" ? monthlyLb : alltimeLb;
 
   return (
     <div className="anim-fade-up" style={{ fontFamily: FONT_BODY }}>
@@ -1324,13 +1331,22 @@ function DashboardTab({ clients, pins, onOpenClient, setPage, onAdd, session }) 
         {/* Top Sellers leaderboard */}
         <div className="card p-4">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>Top Sellers</p>
-            <Award size={15} style={{ color: AMBER }} />
+            <div className="flex items-center gap-2">
+              <Award size={15} style={{ color: AMBER }} />
+              <p className="text-sm font-bold" style={{ color: INK, fontFamily: FONT_HEAD }}>Top Sellers</p>
+            </div>
+            <div className="flex rounded-lg overflow-hidden" style={{ border: `1px solid ${LINE}` }}>
+              {["monthly", "alltime"].map((v) => (
+                <button key={v} onClick={() => setLbView(v)} className="px-2.5 py-1 text-xs font-bold transition-colors" style={{ background: lbView === v ? P : "transparent", color: lbView === v ? "white" : MUTED }}>
+                  {v === "monthly" ? "This Month" : "All Time"}
+                </button>
+              ))}
+            </div>
           </div>
           {leaderboard.length === 0 ? (
             <div className="flex flex-col items-center py-4 gap-1.5">
               <Star size={20} style={{ color: MUTED }} />
-              <p className="text-xs text-center" style={{ color: MUTED }}>Mark jobs complete to start tracking sales.</p>
+              <p className="text-xs text-center" style={{ color: MUTED }}>{lbView === "monthly" ? "No sales logged this month yet." : "Book jobs to start tracking sales."}</p>
             </div>
           ) : (
             <div className="flex flex-col gap-2">
@@ -2130,7 +2146,6 @@ function SettingsTab({ session, userAvatar, setUserAvatar, showToast }) {
   const [lastName,  setLastName]  = useState(meta.last_name  || "");
   const [phone,     setPhone]     = useState(meta.phone      || "");
   const [saving,    setSaving]    = useState(false);
-  const ejsConfigured = !!(EJS_SVC && EJS_TPL && EJS_KEY);
 
   async function saveProfile() {
     setSaving(true);
@@ -2217,52 +2232,6 @@ function SettingsTab({ session, userAvatar, setUserAvatar, showToast }) {
           {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
           Save Profile
         </button>
-      </div>
-
-      {/* Email receipts setup */}
-      <div className="card p-6 mb-4">
-        <div className="flex items-center gap-2 mb-1">
-          <p className="text-xs font-bold uppercase tracking-widest" style={{ color: MUTED }}>Email Receipts</p>
-          <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{ background: ejsConfigured ? EM_L : AMB_L, color: ejsConfigured ? EMERALD : AMBER }}>
-            {ejsConfigured ? "✓ Active — auto-send on" : "Setup required"}
-          </span>
-        </div>
-        <p className="text-xs mb-4" style={{ color: MUTED }}>
-          {ejsConfigured
-            ? "Clicking \"Send receipt\" automatically emails the client from your business Gmail."
-            : "Without setup, clicking \"Send receipt\" opens Gmail in a new tab. Follow the steps below to enable auto-send."}
-        </p>
-
-        {!ejsConfigured && (
-          <div className="rounded-xl p-4" style={{ background: BG, border: `1px solid ${LINE}` }}>
-            <p className="text-sm font-bold mb-3" style={{ color: INK }}>3-minute setup (free):</p>
-            <ol className="flex flex-col gap-2.5 text-xs" style={{ color: INK_SOFT, lineHeight: 1.5 }}>
-              <li><span className="font-bold" style={{ color: P }}>1.</span> Go to <strong>emailjs.com</strong> and create a free account</li>
-              <li><span className="font-bold" style={{ color: P }}>2.</span> Click <strong>Add New Service</strong> → choose Gmail → connect peakpropertycareca@gmail.com → copy the <strong>Service ID</strong></li>
-              <li><span className="font-bold" style={{ color: P }}>3.</span> Click <strong>Email Templates → Create New</strong>. Set Subject to <code>Receipt – Peak Property Care</code>. In the body use these variables:<br />
-                <code className="block mt-1 p-2.5 rounded-lg text-xs leading-loose" style={{ background: DARK, color: ACCENT_LIGHT, fontFamily: FONT_MONO }}>
-                  To: {"{{to_email}}"}<br />
-                  Client: {"{{to_name}}"}<br />
-                  Date: {"{{date}}"}<br />
-                  Services: {"{{services_list}}"}<br />
-                  Total: {"{{total}}"}<br />
-                  Address: {"{{address}}"}<br />
-                  Notes: {"{{notes}}"}
-                </code>
-                Save and copy the <strong>Template ID</strong>.
-              </li>
-              <li><span className="font-bold" style={{ color: P }}>4.</span> Go to <strong>Account → API Keys</strong> → copy your <strong>Public Key</strong></li>
-              <li><span className="font-bold" style={{ color: P }}>5.</span> In <strong>Netlify → Site configuration → Environment variables</strong>, add these 3 variables:
-                <code className="block mt-1 p-2.5 rounded-lg text-xs leading-loose" style={{ background: DARK, color: ACCENT_LIGHT, fontFamily: FONT_MONO }}>
-                  VITE_EMAILJS_SERVICE_ID = your-service-id<br />
-                  VITE_EMAILJS_TEMPLATE_ID = your-template-id<br />
-                  VITE_EMAILJS_PUBLIC_KEY = your-public-key
-                </code>
-              </li>
-              <li><span className="font-bold" style={{ color: P }}>6.</span> Click <strong>Trigger deploy</strong> in Netlify — done!</li>
-            </ol>
-          </div>
-        )}
       </div>
 
       {/* Danger zone */}
