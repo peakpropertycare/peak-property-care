@@ -1087,13 +1087,21 @@ export default function App() {
 
     const hasAppt = !!clientInfo.nextServiceDate;
     const label = clientInfo.name || clientInfo.street || "Client";
-    const statusId = hasAppt ? "appointment" : clientInfo.statusId || "not-home";
     const targetPinId = pinContext?.pinId || pins.find((p) => p.clientId === clientId)?.id;
+    const oldPin = targetPinId ? pins.find((p) => p.id === targetPinId) : null;
+
+    // Status is controlled by whatever the pin panel had selected. Only fall
+    // back to the pin's current status (or a smart default) when the caller
+    // didn't pass one — e.g. editing a client from the Clients tab, where
+    // linking/booking shouldn't silently reset an already-tagged pin to gray.
+    const requestedStatus = pinContext?.statusId;
+    const statusId = requestedStatus
+      ? (requestedStatus === "not-home" && hasAppt ? "appointment" : requestedStatus)
+      : (oldPin?.statusId || (hasAppt ? "appointment" : "not-home"));
 
     // If an existing client's address changed (and this isn't a fresh drop/drag
     // on the map), their old pin no longer marks the right house — unpin it so
     // a new pin can be dropped at the correct spot.
-    const oldPin = targetPinId ? pins.find((p) => p.id === targetPinId) : null;
     const addressChanged = !!(match && oldPin && oldPin.lat != null && pinContext?.lat == null && (
       normStr(match.street) !== normStr(clientInfo.street) ||
       normStr(match.city) !== normStr(clientInfo.city) ||
@@ -1391,7 +1399,9 @@ function DashboardTab({ clients, pins, onOpenClient, setPage, onAdd, session }) 
     clients.forEach((c) => {
       (c.history || []).forEach((h) => {
         if (!h.bookedBy || !filterFn(h)) return;
-        totals[h.bookedBy] = (totals[h.bookedBy] || 0) + (Number(h.price) || 0);
+        const key = h.bookedById || h.bookedBy;
+        if (!totals[key]) totals[key] = { name: h.bookedBy, id: h.bookedById || null, total: 0 };
+        totals[key].total += Number(h.price) || 0;
       });
     });
     // Pending booked jobs (not yet serviced) — credit goes to whoever booked
@@ -1400,10 +1410,11 @@ function DashboardTab({ clients, pins, onOpenClient, setPage, onAdd, session }) 
       const price = Number(c.price) || 0;
       if (!price) return;
       if (!filterFn({ date: c.nextServiceDate })) return;
-      totals[c.scheduledBy] = (totals[c.scheduledBy] || 0) + price;
+      const key = c.scheduledById || c.scheduledBy;
+      if (!totals[key]) totals[key] = { name: c.scheduledBy, id: c.scheduledById || null, total: 0 };
+      totals[key].total += price;
     });
-    return Object.entries(totals)
-      .map(([name, total]) => ({ name, total }))
+    return Object.values(totals)
       .sort((a, b) => b.total - a.total)
       .slice(0, 5);
   }
@@ -1411,6 +1422,33 @@ function DashboardTab({ clients, pins, onOpenClient, setPage, onAdd, session }) 
   const monthlyLb  = useMemo(() => buildLeaderboard((h) => (h.date || h.serviceDate || "").slice(0, 7) === thisMonth), [clients, thisMonth]);
   const alltimeLb  = useMemo(() => buildLeaderboard(() => true), [clients]);
   const leaderboard = lbView === "monthly" ? monthlyLb : alltimeLb;
+
+  // Pull each teammate's uploaded profile picture (stored per-account under
+  // `avatar:<userId>`) so the leaderboard shows real photos, not just initials.
+  const [avatars, setAvatars] = useState({});
+  const leaderboardIds = useMemo(() => {
+    const ids = new Set();
+    monthlyLb.forEach((r) => r.id && ids.add(r.id));
+    alltimeLb.forEach((r) => r.id && ids.add(r.id));
+    return [...ids];
+  }, [monthlyLb, alltimeLb]);
+
+  useEffect(() => {
+    const missing = leaderboardIds.filter((id) => !(id in avatars));
+    if (missing.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const updates = {};
+      await Promise.all(missing.map(async (id) => {
+        try {
+          const res = await storage.get(`avatar:${id}`);
+          updates[id] = res ? JSON.parse(res.value) : null;
+        } catch { updates[id] = null; }
+      }));
+      if (!cancelled) setAvatars((prev) => ({ ...prev, ...updates }));
+    })();
+    return () => { cancelled = true; };
+  }, [leaderboardIds]);
 
   return (
     <div className="anim-fade-up" style={{ fontFamily: FONT_BODY }}>
@@ -1485,18 +1523,23 @@ function DashboardTab({ clients, pins, onOpenClient, setPage, onAdd, session }) 
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              {leaderboard.map(({ name, total }, i) => {
-                const isMe = name === currentUserName;
+              {leaderboard.map(({ name, id, total }, i) => {
+                const isMe = id && session?.user?.id ? id === session.user.id : name === currentUserName;
                 const rankColor = [AMBER, "#9CA3AF", "#B87333"][i] || MUTED;
                 const barPct = leaderboard[0]?.total ? Math.max(8, (total / leaderboard[0].total) * 100) : 0;
+                const avatarUrl = id ? avatars[id] : null;
                 return (
-                  <div key={name} className="rounded-xl px-3 py-2.5" style={{ background: isMe ? `${P}08` : BG, border: `1px solid ${isMe ? P + "30" : LINE}` }}>
+                  <div key={id || name} className="rounded-xl px-3 py-2.5" style={{ background: isMe ? `${P}08` : BG, border: `1px solid ${isMe ? P + "30" : LINE}` }}>
                     <div className="flex items-center gap-2.5 mb-1.5">
                       <span className="text-xs font-black w-5 shrink-0 text-center" style={{ color: rankColor, fontFamily: FONT_MONO }}>#{i + 1}</span>
                       <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                        <div style={{ width: 24, height: 24, borderRadius: "50%", background: `linear-gradient(135deg,${getAvatarColor(name)},${getAvatarColor(name)}99)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.6rem", fontWeight: 800, color: "white", flexShrink: 0 }}>
-                          {getInitials(name)}
-                        </div>
+                        {avatarUrl ? (
+                          <img src={avatarUrl} alt="" style={{ width: 24, height: 24, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                        ) : (
+                          <div style={{ width: 24, height: 24, borderRadius: "50%", background: `linear-gradient(135deg,${getAvatarColor(name)},${getAvatarColor(name)}99)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.6rem", fontWeight: 800, color: "white", flexShrink: 0 }}>
+                            {getInitials(name)}
+                          </div>
+                        )}
                         <span className="font-semibold text-sm truncate" style={{ color: INK }}>{name}</span>
                         {isMe && <span className="text-xs px-1.5 py-0.5 rounded-full font-bold" style={{ background: P_LIGHT, color: P }}>You</span>}
                       </div>
@@ -2141,6 +2184,18 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin, sh
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState(null);
+  const [existingQuery, setExistingQuery] = useState("");
+  const [showExistingDrop, setShowExistingDrop] = useState(false);
+
+  const matchingClients = useMemo(() => {
+    const q = existingQuery.trim().toLowerCase();
+    if (!q) return [];
+    return clients.filter((c) =>
+      (c.name || "").toLowerCase().includes(q) ||
+      (c.street || "").toLowerCase().includes(q) ||
+      (c.phone || "").includes(q)
+    ).slice(0, 8);
+  }, [existingQuery, clients]);
 
   useEffect(() => {
     if (mapRef.current || !mapElRef.current) return;
@@ -2154,6 +2209,8 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin, sh
       setPanel({ mode: "create", lat: e.latlng.lat, lng: e.latlng.lng, label: "", statusId: "not-home", notes: "" });
       setExpanded(false);
       setClientForm(emptyForm);
+      setExistingQuery("");
+      setShowExistingDrop(false);
     });
     mapRef.current = map;
     setTimeout(() => map.invalidateSize(), 200);
@@ -2177,8 +2234,10 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin, sh
         L.DomEvent.stopPropagation(e);
         const linked = pin.clientId ? clients.find((c) => c.id === pin.clientId) : null;
         setPanel({ mode: "edit", id: pin.id, lat: pin.lat, lng: pin.lng, label: pin.label, statusId: pin.statusId, notes: pin.notes || "", linkedClient: linked || null });
-        setExpanded(!!linked);
+        setExpanded(false);
         setClientForm(linked ? { ...emptyForm, ...linked } : { ...emptyForm, name: pin.label || "" });
+        setExistingQuery("");
+        setShowExistingDrop(false);
       });
       marker.addTo(markersRef.current);
     });
@@ -2204,20 +2263,21 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin, sh
     }
   }
 
-  function quickTagAndSave(statusId) {
-    const label = statusMap[statusId]?.label || statusId;
+  function savePanel() {
+    const statusId = panel.statusId;
+    const statusLabel = statusMap[statusId]?.label || statusId;
     if (panel.mode === "create") {
       persistPins([...pins, { id: genId(), lat: panel.lat, lng: panel.lng, label: panel.label || "Untitled house", statusId, notes: panel.notes, clientId: null, updatedAt: new Date().toISOString() }]);
-      showToast(`Pin dropped · ${label}`);
+      showToast(`Pin dropped · ${statusLabel}`);
     } else {
       persistPins(pins.map((p) => (p.id === panel.id ? { ...p, label: panel.label, statusId, notes: panel.notes, updatedAt: new Date().toISOString() } : p)));
-      showToast(`Updated to ${label}`);
+      showToast(`Updated to ${statusLabel}`);
     }
     setPanel(null);
   }
   function saveExpanded() {
     const hasAppt = !!clientForm.nextServiceDate;
-    upsertClientAndPin(clientForm, { lat: panel.lat, lng: panel.lng, pinId: panel.id });
+    upsertClientAndPin(clientForm, { lat: panel.lat, lng: panel.lng, pinId: panel.id, statusId: panel.statusId });
     showToast(hasAppt ? "Client saved · added to schedule" : "Client saved");
     setPanel(null);
   }
@@ -2272,12 +2332,12 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin, sh
 
       {panel && createPortal(
         <div className="fixed inset-0 flex items-end sm:items-center justify-center bg-black/50 px-3 pb-4 sm:px-4 sm:py-8 overflow-y-auto" style={{ zIndex: 9999 }}>
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl animate-slide-up overflow-hidden">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl animate-slide-up flex flex-col" style={{ maxHeight: "88vh" }}>
             {/* header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: LINE, background: panel.mode === "create" ? `linear-gradient(135deg, ${GREEN}18, ${ACCENT}10)` : `linear-gradient(135deg, ${ACCENT}12, ${INK}08)` }}>
+            <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b rounded-t-2xl" style={{ borderColor: LINE, background: panel.mode === "create" ? `linear-gradient(135deg, ${GREEN}18, ${ACCENT}10)` : `linear-gradient(135deg, ${ACCENT}12, ${INK}08)` }}>
               <div>
                 <p className="font-bold text-sm" style={{ color: INK, fontFamily: FONT_HEAD }}>{panel.mode === "create" ? "New house pin" : panel.linkedClient ? panel.linkedClient.name : panel.label || "House pin"}</p>
-                {panel.linkedClient && <p className="text-xs mt-0.5" style={{ color: MUTED }}>Linked client · tap to edit</p>}
+                {panel.linkedClient && <p className="text-xs mt-0.5" style={{ color: MUTED }}>Linked client</p>}
               </div>
               <div className="flex items-center gap-2">
                 {panel.mode === "edit" && panel.linkedClient && (
@@ -2287,15 +2347,15 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin, sh
               </div>
             </div>
 
-            <div className="px-5 py-4">
+            <div className="px-5 py-4 overflow-y-auto flex-1">
               {!expanded ? (
                 <>
-                  <p className="text-xs font-bold mb-2 tracking-wide" style={{ color: MUTED }}>SET STATUS</p>
+                  <p className="text-xs font-bold mb-2 tracking-wide" style={{ color: MUTED }}>SET STATUS · TAP TO CHOOSE A COLOR</p>
                   <div className="grid grid-cols-2 gap-2 mb-4">
                     {HOUSE_STATUSES.map((s) => {
                       const active = panel.statusId === s.id;
                       return (
-                        <button key={s.id} onClick={() => quickTagAndSave(s.id)}
+                        <button type="button" key={s.id} onClick={() => setPanel((p) => ({ ...p, statusId: s.id }))}
                           className="flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all"
                           style={{ borderColor: active ? s.color : `${s.color}50`, background: active ? s.color : `${s.color}10`, color: active ? "white" : s.color }}>
                           <span style={{ width: 8, height: 8, borderRadius: 999, background: active ? "white" : s.color, display: "inline-block", flexShrink: 0 }} />
@@ -2304,10 +2364,20 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin, sh
                       );
                     })}
                   </div>
+
+                  {panel.linkedClient && (
+                    <div className="rounded-xl border p-3 mb-3" style={{ borderColor: LINE, background: BG }}>
+                      <p className="font-bold text-sm" style={{ color: INK, fontFamily: FONT_HEAD }}>{panel.linkedClient.name || "Unnamed client"}</p>
+                      {panel.linkedClient.phone && <p className="text-xs mt-0.5" style={{ color: MUTED }}>{panel.linkedClient.phone}</p>}
+                      {formatAddress(panel.linkedClient) && <p className="text-xs mt-0.5" style={{ color: MUTED }}>{formatAddress(panel.linkedClient)}</p>}
+                      {panel.linkedClient.nextServiceDate && <p className="text-xs mt-0.5 font-semibold" style={{ color: ACCENT }}>Next: {formatDate(panel.linkedClient.nextServiceDate)}{panel.linkedClient.nextServiceTime ? ` at ${formatTime(panel.linkedClient.nextServiceTime)}` : ""}</p>}
+                    </div>
+                  )}
+
                   <input value={panel.label} onChange={(e) => setPanel((p) => ({ ...p, label: e.target.value }))} placeholder="Address or label (optional)" className="text-sm rounded-xl border px-3 py-2 w-full mb-2" style={{ borderColor: LINE }} />
                   <textarea value={panel.notes} onChange={(e) => setPanel((p) => ({ ...p, notes: e.target.value }))} placeholder="Notes (gate code, pets, etc.)" rows={2} className="text-sm rounded-xl border px-3 py-2 w-full mb-4" style={{ borderColor: LINE, resize: "vertical" }} />
                   <button onClick={() => setExpanded(true)} className="flex items-center gap-1.5 text-sm font-semibold mb-4 w-full justify-center rounded-xl border py-2.5" style={{ borderColor: `${ACCENT}40`, color: ACCENT, background: `${ACCENT}08` }}>
-                    <Plus size={15} /> {panel.linkedClient ? "Edit client details" : "Add client info & book appointment"}
+                    <Plus size={15} /> {panel.linkedClient ? "Edit client details" : "Add or link a customer"}
                   </button>
                   <div className="flex justify-between gap-2">
                     {panel.mode === "edit" ? (
@@ -2315,7 +2385,7 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin, sh
                         <Trash2 size={13} /> Delete pin
                       </button>
                     ) : <span />}
-                    <button onClick={() => quickTagAndSave(panel.statusId)} className="text-xs font-semibold rounded-xl px-3 py-2 text-white" style={{ background: ACCENT }}>
+                    <button onClick={savePanel} className="text-xs font-semibold rounded-xl px-3 py-2 text-white" style={{ background: ACCENT }}>
                       Save
                     </button>
                   </div>
@@ -2325,20 +2395,34 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin, sh
                   {!panel.linkedClient && clients.length > 0 && (
                     <div className="mb-3">
                       <p className="text-xs font-bold mb-1.5 tracking-wide" style={{ color: MUTED }}>LINK AN EXISTING CUSTOMER</p>
-                      <select
-                        value=""
-                        onChange={(e) => {
-                          const existing = clients.find((c) => c.id === e.target.value);
-                          if (existing) setClientForm({ ...emptyForm, ...existing });
-                        }}
-                        className="text-sm rounded-xl border px-3 py-2 w-full"
-                        style={{ borderColor: LINE, color: INK }}
-                      >
-                        <option value="">— Select from client list —</option>
-                        {clients.map((c) => (
-                          <option key={c.id} value={c.id}>{c.name || "Unnamed"}{c.street ? ` · ${c.street}` : ""}</option>
-                        ))}
-                      </select>
+                      <div className="relative">
+                        <div className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: LINE }}>
+                          <SearchIcon size={14} style={{ color: MUTED }} />
+                          <input
+                            value={existingQuery}
+                            onChange={(e) => { setExistingQuery(e.target.value); setShowExistingDrop(true); }}
+                            onFocus={() => existingQuery && setShowExistingDrop(true)}
+                            onBlur={() => setTimeout(() => setShowExistingDrop(false), 200)}
+                            placeholder="Search clients by name, address, or phone…"
+                            autoComplete="off"
+                            className="outline-none text-sm flex-1"
+                          />
+                        </div>
+                        {showExistingDrop && matchingClients.length > 0 && (
+                          <div className="absolute z-50 left-0 right-0 mt-1 bg-white rounded-xl border shadow-xl overflow-hidden" style={{ borderColor: LINE, maxHeight: 220, overflowY: "auto" }}>
+                            {matchingClients.map((c) => (
+                              <button key={c.id} type="button" onMouseDown={() => {
+                                setClientForm({ ...emptyForm, ...c });
+                                setExistingQuery("");
+                                setShowExistingDrop(false);
+                              }} className="w-full px-3 py-2 text-left hover:bg-slate-50 border-b last:border-0 transition-colors" style={{ borderColor: LINE }}>
+                                <p className="text-sm font-semibold truncate" style={{ color: INK }}>{c.name || "Unnamed"}</p>
+                                <p className="text-xs truncate" style={{ color: MUTED }}>{formatAddress(c) || c.phone || ""}</p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       <p className="text-xs mt-1" style={{ color: MUTED }}>Or just fill in the form below to add a new customer.</p>
                     </div>
                   )}
