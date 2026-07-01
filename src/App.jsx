@@ -933,24 +933,52 @@ export default function App() {
   const [priceDrafts, setPriceDrafts] = useState({});
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
+  // Load data after session is established, re-sync on tab focus, stream live updates
   useEffect(() => {
-    (async () => {
+    if (!session?.user?.id) return;
+    let cancelled = false;
+
+    async function fetchData() {
       try {
         const res = await storage.get("clients");
-        const data = res ? JSON.parse(res.value) : [];
-        setClients(data.map((c) => ({ ...emptyForm, ...c, tags: c.tags || [] })));
-      } catch {
-        setClients([]);
-      }
+        if (!cancelled) {
+          const data = res ? JSON.parse(res.value) : [];
+          setClients(data.map((c) => ({ ...emptyForm, ...c, tags: c.tags || [] })));
+        }
+      } catch {}
       try {
         const res = await storage.get("pins");
-        setPins(res ? JSON.parse(res.value) : []);
-      } catch {
-        setPins([]);
-      }
-      setLoading(false);
-    })();
-  }, []);
+        if (!cancelled) setPins(res ? JSON.parse(res.value) : []);
+      } catch {}
+      if (!cancelled) setLoading(false);
+    }
+
+    fetchData();
+
+    // Re-fetch whenever this tab comes back into focus (syncs changes from another device)
+    function onVisible() { if (document.visibilityState === "visible") fetchData(); }
+    document.addEventListener("visibilitychange", onVisible);
+
+    // Supabase Realtime — instant push sync across all devices
+    // Requires: Supabase dashboard → Database → Replication → enable app_storage
+    const ch = supabase
+      .channel("peak-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "app_storage" }, (payload) => {
+        if (!payload.new) return;
+        if (payload.new.key === "clients") {
+          setClients((payload.new.value || []).map((c) => ({ ...emptyForm, ...c, tags: c.tags || [] })));
+        } else if (payload.new.key === "pins") {
+          setPins(payload.new.value || []);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      supabase.removeChannel(ch);
+    };
+  }, [session?.user?.id]);
 
   useEffect(() => {
     const link = document.createElement("link");

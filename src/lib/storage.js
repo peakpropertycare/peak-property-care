@@ -20,9 +20,11 @@ export const storage = {
 
   async set(key, value) {
     const parsed = JSON.parse(value);
-    const { error } = await supabase
-      .from("app_storage")
-      .upsert({ key, value: parsed, updated_at: new Date().toISOString() });
+    // Check if row exists so we update (not insert a duplicate)
+    const { data: existing } = await supabase.from("app_storage").select("key").eq("key", key).maybeSingle();
+    const { error } = existing
+      ? await supabase.from("app_storage").update({ value: parsed, updated_at: new Date().toISOString() }).eq("key", key)
+      : await supabase.from("app_storage").insert({ key, value: parsed, updated_at: new Date().toISOString() });
     if (error) {
       console.error("storage.set failed", error);
       return null;
