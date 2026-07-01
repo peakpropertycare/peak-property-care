@@ -2075,6 +2075,7 @@ async function sendReceiptEmail(client, price, notes, date, services, showToast)
       service:      svcList.join(", "),
       date:         dateLabel,
       price:        amt,
+      cost:         { total: amt },
       "cost.total": amt,
     }, EJS_KEY);
     showToast?.(`Receipt sent to ${client.email}`);
