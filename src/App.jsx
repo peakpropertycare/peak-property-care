@@ -1759,6 +1759,12 @@ function CommTemplates({ client }) {
 
 /* ---------- Detail drawer ---------- */
 function DetailDrawer({ client, onClose, onEdit, onDelete, onMark, noteDraft, setNoteDraft, priceDraft, setPriceDraft, showToast }) {
+  const [sendingReceipt, setSendingReceipt] = useState(false);
+  async function handleSendReceipt(price, notes, date, services) {
+    setSendingReceipt(true);
+    await sendReceiptEmail(client, price, notes, date, services, showToast);
+    setSendingReceipt(false);
+  }
   const due = dueText(daysUntil(client.nextServiceDate));
   const addr = formatAddress(client);
   const lifetimeValue = (client.history || []).reduce((sum, h) => sum + (Number(h.price) || 0), 0);
@@ -1827,8 +1833,9 @@ function DetailDrawer({ client, onClose, onEdit, onDelete, onMark, noteDraft, se
           <div className="flex gap-2 mt-2">
             <button onClick={onMark} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-white whitespace-nowrap flex-1" style={{ background: GREEN }}><CheckCircle2 size={14} /> Mark serviced</button>
             {client.email && (
-              <button onClick={() => sendReceiptEmail(client, priceDraft, noteDraft, undefined, undefined, showToast)} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap" style={{ background: P_LIGHT, color: P }}>
-                <Receipt size={14} /> Send receipt
+              <button onClick={() => handleSendReceipt(priceDraft, noteDraft)} disabled={sendingReceipt} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap" style={{ background: P_LIGHT, color: sendingReceipt ? MUTED : P, opacity: sendingReceipt ? 0.7 : 1 }}>
+                {sendingReceipt ? <Loader2 size={14} className="animate-spin" /> : <Receipt size={14} />}
+                {sendingReceipt ? "Sending…" : "Send receipt"}
               </button>
             )}
           </div>
@@ -1857,8 +1864,9 @@ function DetailDrawer({ client, onClose, onEdit, onDelete, onMark, noteDraft, se
                       {!!h.price && <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ color: EMERALD, background: EM_L, fontFamily: FONT_MONO }}>{formatMoney(h.price)}</span>}
                     </div>
                     {client.email && (
-                      <button onClick={() => sendReceiptEmail(client, h.price, h.notes, h.date, h.services, showToast)} className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg" style={{ background: P_LIGHT, color: P }}>
-                        <Receipt size={11} /> Receipt
+                      <button onClick={() => handleSendReceipt(h.price, h.notes, h.date, h.services)} disabled={sendingReceipt} className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg" style={{ background: P_LIGHT, color: sendingReceipt ? MUTED : P, opacity: sendingReceipt ? 0.7 : 1 }}>
+                        {sendingReceipt ? <Loader2 size={11} className="animate-spin" /> : <Receipt size={11} />}
+                        {sendingReceipt ? "…" : "Receipt"}
                       </button>
                     )}
                   </div>
@@ -1881,57 +1889,21 @@ async function sendReceiptEmail(client, price, notes, date, services, showToast)
   const addr = formatAddress(client);
   const amt = formatMoney(Number(price) || 0);
   const dateLabel = new Date(d + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-
-  // Try EmailJS auto-send first if configured
-  if (EJS_SVC && EJS_TPL && EJS_KEY) {
-    try {
-      await emailjs.send(EJS_SVC, EJS_TPL, {
-        to_email:      client.email,
-        to_name:       client.name || "Valued Customer",
-        date:          dateLabel,
-        services_list: svcList.map((s) => `✓ ${s}`).join("\n"),
-        total:         amt,
-        address:       addr || "—",
-        notes:         notes || "",
-      }, EJS_KEY);
-      showToast?.("Receipt sent to " + client.email);
-      return;
-    } catch {
-      showToast?.("Auto-send failed — opening Gmail instead", "warning");
-    }
+  try {
+    await emailjs.send(EJS_SVC, EJS_TPL, {
+      to_email:      client.email,
+      to_name:       client.name || "Valued Customer",
+      date:          dateLabel,
+      services_list: svcList.join(", "),
+      total:         amt,
+      address:       addr || "—",
+      notes:         notes || "",
+    }, EJS_KEY);
+    showToast?.(`Receipt sent to ${client.email}`);
+  } catch (err) {
+    const msg = err?.text || err?.message || "Unknown error";
+    showToast?.(`Failed to send receipt: ${msg}`, "error");
   }
-
-  // Fallback: open Gmail compose in browser
-  const body = [
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-    "  RECEIPT — PEAK PROPERTY CARE",
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-    "",
-    `Date:     ${dateLabel}`,
-    `Client:   ${client.name || ""}`,
-    addr ? `Address:  ${addr}` : "",
-    "",
-    "SERVICES PROVIDED:",
-    ...svcList.map((s) => `  ✓ ${s}`),
-    "",
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-    `TOTAL PAID:    ${amt}`,
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-    "",
-    notes ? `Notes: ${notes}` : "",
-    "",
-    "Thank you for choosing Peak Property Care!",
-    "We appreciate your business.",
-    "",
-    "──────────────────────────────────",
-    "Peak Property Care",
-    "peakpropertycareca@gmail.com",
-    "──────────────────────────────────",
-  ].filter(Boolean).join("\n");
-
-  const subject = `Receipt – Peak Property Care – ${dateLabel}`;
-  const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(client.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  window.open(gmailUrl, "_blank");
 }
 
 /* ---------- Door Map ---------- */
