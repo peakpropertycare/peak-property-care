@@ -1121,10 +1121,15 @@ export default function App() {
   }
   function markServiced(client) {
     const today = todayStr();
+    // Guard: only allow if there's a scheduled date that is today or past
+    if (!client.nextServiceDate || client.nextServiceDate > today) return;
+    // Guard: prevent marking the same appointment twice
+    if ((client.history || []).some((h) => h.serviceDate === client.nextServiceDate)) return;
     const note = noteDrafts[client.id] || "";
     const price = getPriceDraft(client);
-    const sellerName = client.scheduledBy || "Unknown";
-    const sellerId = client.scheduledById;
+    // Credit goes to the person who BOOKED the job, never the person clicking this button
+    const sellerName = client.scheduledBy || null;
+    const sellerId = client.scheduledById || null;
     const entry = { date: today, serviceDate: client.nextServiceDate, serviceTime: client.nextServiceTime, services: client.services, notes: note, price: Number(price) || 0, bookedBy: sellerName, bookedById: sellerId };
     const nextDate = client.frequency === "one-time" ? null : addInterval(today, client.frequency);
     const updated = { ...client, history: [entry, ...(client.history || [])], nextServiceDate: nextDate, nextServiceTime: nextDate ? client.nextServiceTime : "" };
@@ -1938,6 +1943,10 @@ function CommTemplates({ client }) {
 /* ---------- Detail drawer ---------- */
 function DetailDrawer({ client, onClose, onEdit, onDelete, onMark, noteDraft, setNoteDraft, priceDraft, setPriceDraft, showToast }) {
   const [sendingReceipt, setSendingReceipt] = useState(false);
+  const today = todayStr();
+  const alreadyDoneToday = (client.history || []).some((h) => h.serviceDate === client.nextServiceDate);
+  const isFuture = client.nextServiceDate && client.nextServiceDate > today;
+  const canMark = !!client.nextServiceDate && !isFuture && !alreadyDoneToday;
   async function handleSendReceipt(price, notes, date, services) {
     setSendingReceipt(true);
     await sendReceiptEmail(client, price, notes, date, services, showToast);
@@ -2009,7 +2018,7 @@ function DetailDrawer({ client, onClose, onEdit, onDelete, onMark, noteDraft, se
             <input value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} placeholder="Note (optional)" className="text-sm rounded-lg border px-3 py-2 flex-1" style={{ borderColor: LINE }} />
           </div>
           <div className="flex gap-2 mt-2">
-            <button onClick={onMark} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-white whitespace-nowrap flex-1" style={{ background: GREEN }}><CheckCircle2 size={14} /> Mark serviced</button>
+            <button onClick={onMark} disabled={!canMark} title={alreadyDoneToday ? "Already marked complete for this appointment" : isFuture ? "Can't mark a future appointment as done" : ""} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-white whitespace-nowrap flex-1" style={{ background: canMark ? GREEN : MUTED, cursor: canMark ? "pointer" : "not-allowed", opacity: canMark ? 1 : 0.55 }}><CheckCircle2 size={14} /> {alreadyDoneToday ? "Already done" : "Mark serviced"}</button>
             {client.email && (
               <button onClick={() => handleSendReceipt(priceDraft, noteDraft)} disabled={sendingReceipt} className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap" style={{ background: P_LIGHT, color: sendingReceipt ? MUTED : P, opacity: sendingReceipt ? 0.7 : 1 }}>
                 {sendingReceipt ? <Loader2 size={14} className="animate-spin" /> : <Receipt size={14} />}
@@ -2064,7 +2073,8 @@ async function sendReceiptEmail(client, price, notes, date, services, showToast)
   const d = date || todayStr();
   const svcMap = { window: "Window Cleaning", solar: "Solar Panel Cleaning", pressure: "Pressure Washing", gutter: "Gutter Cleaning" };
   const svcList = (services || client.services || []).map((s) => svcMap[s] || s);
-  const amt = formatMoney(Number(price) || 0);
+  // Send the number without $ — the EmailJS template already has the $ symbol hardcoded
+  const amtRaw = (Number(price) || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const dateLabel = new Date(d + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
   const orderId = `REC-${d.replace(/-/g, "")}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
   try {
@@ -2074,9 +2084,9 @@ async function sendReceiptEmail(client, price, notes, date, services, showToast)
       order_id:     String(orderId),
       service:      svcList.join(", "),
       date:         dateLabel,
-      price:        amt,
-      cost:         { total: amt },
-      "cost.total": amt,
+      price:        amtRaw,
+      cost:         { total: amtRaw },
+      "cost.total": amtRaw,
     }, EJS_KEY);
     showToast?.(`Receipt sent to ${client.email}`);
   } catch (err) {
