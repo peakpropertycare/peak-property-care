@@ -2069,13 +2069,13 @@ async function sendReceiptEmail(client, price, notes, date, services, showToast)
   const orderId = `REC-${d.replace(/-/g, "")}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
   try {
     await emailjs.send(EJS_SVC, EJS_TPL, {
-      to_email: client.email,
-      to_name:  client.name || "Valued Customer",
-      order_id: orderId,
-      service:  svcList.join(", "),
-      date:     dateLabel,
-      price:    amt,
-      cost:     { total: amt },
+      to_email:     client.email,
+      to_name:      client.name || "Valued Customer",
+      order_id:     String(orderId),
+      service:      svcList.join(", "),
+      date:         dateLabel,
+      price:        amt,
+      "cost.total": amt,
     }, EJS_KEY);
     showToast?.(`Receipt sent to ${client.email}`);
   } catch (err) {
