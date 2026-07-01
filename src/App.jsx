@@ -119,7 +119,7 @@ const NAV_ITEMS = [
   { id: "settings",  label: "Settings", icon: SettingsIcon    },
 ];
 
-const DURATION_PRESETS = [30, 60, 90, 120];
+const DURATION_PRESETS = [30, 60, 90, 120, 150, 180, 210, 240];
 const CLIENT_TAGS = ["Recurring", "High Value", "Commercial", "Residential", "Referral"];
 const PHOTO_CATEGORIES = [
   { id: "property", label: "Property" },
@@ -185,6 +185,14 @@ function formatAddress(c) {
   const cityStateZip = [cityState, c.zip].filter(Boolean).join(" ");
   if (cityStateZip) parts.push(cityStateZip);
   return parts.join(", ");
+}
+function formatDuration(mins) {
+  const total = Number(mins) || 0;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
 }
 function formatMoney(n) {
   const num = Number(n) || 0;
@@ -753,7 +761,7 @@ function ClientFieldsForm({ form, setForm, compact, clients }) {
         <div className="flex flex-wrap gap-2">
           {DURATION_PRESETS.map((d) => (
             <button type="button" key={d} onClick={() => setForm((f) => ({ ...f, duration: d }))} className="rounded-full border px-3 py-1.5 text-xs font-medium" style={{ borderColor: form.duration === d ? ACCENT : LINE, background: form.duration === d ? `${ACCENT}14` : "white", color: form.duration === d ? ACCENT : MUTED }}>
-              {d} min
+              {formatDuration(d)}
             </button>
           ))}
           <button type="button" onClick={() => setForm((f) => ({ ...f, duration: DURATION_PRESETS.includes(f.duration) ? 45 : f.duration }))} className="rounded-full border px-3 py-1.5 text-xs font-medium" style={{ borderColor: !DURATION_PRESETS.includes(form.duration) ? ACCENT : LINE, background: !DURATION_PRESETS.includes(form.duration) ? `${ACCENT}14` : "white", color: !DURATION_PRESETS.includes(form.duration) ? ACCENT : MUTED }}>
@@ -761,7 +769,19 @@ function ClientFieldsForm({ form, setForm, compact, clients }) {
           </button>
         </div>
         {!DURATION_PRESETS.includes(form.duration) && (
-          <input type="number" min="15" step="15" value={form.duration} onChange={(e) => setForm((f) => ({ ...f, duration: Number(e.target.value) || 30 }))} placeholder="Minutes" style={{ ...inputStyle, marginTop: 6 }} />
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={form.duration === "" || form.duration == null ? "" : form.duration}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/[^0-9]/g, "");
+              setForm((f) => ({ ...f, duration: digits === "" ? "" : Number(digits) }));
+            }}
+            onBlur={() => setForm((f) => ({ ...f, duration: f.duration === "" || !f.duration ? 30 : f.duration }))}
+            placeholder="Minutes"
+            style={{ ...inputStyle, marginTop: 6 }}
+          />
         )}
       </Field>
       <Field label="Notes (gate code, pets, access, preferences)">
@@ -1070,11 +1090,25 @@ export default function App() {
     const statusId = hasAppt ? "appointment" : clientInfo.statusId || "not-home";
     const targetPinId = pinContext?.pinId || pins.find((p) => p.clientId === clientId)?.id;
 
+    // If an existing client's address changed (and this isn't a fresh drop/drag
+    // on the map), their old pin no longer marks the right house — unpin it so
+    // a new pin can be dropped at the correct spot.
+    const oldPin = targetPinId ? pins.find((p) => p.id === targetPinId) : null;
+    const addressChanged = !!(match && oldPin && oldPin.lat != null && pinContext?.lat == null && (
+      normStr(match.street) !== normStr(clientInfo.street) ||
+      normStr(match.city) !== normStr(clientInfo.city) ||
+      normStr(match.zip) !== normStr(clientInfo.zip)
+    ));
+
     let nextPins = pins;
     if (targetPinId) {
       nextPins = pins.map((p) =>
         p.id === targetPinId
-          ? { ...p, ...(pinContext?.lat != null ? { lat: pinContext.lat, lng: pinContext.lng } : {}), clientId, label, statusId, updatedAt: new Date().toISOString() }
+          ? {
+              ...p,
+              ...(pinContext?.lat != null ? { lat: pinContext.lat, lng: pinContext.lng } : addressChanged ? { lat: null, lng: null } : {}),
+              clientId, label, statusId, updatedAt: new Date().toISOString(),
+            }
           : p
       );
     } else if (pinContext || hasAppt) {
@@ -1083,6 +1117,7 @@ export default function App() {
 
     persist(nextClients);
     if (nextPins !== pins) persistPins(nextPins);
+    if (addressChanged) showToast("Address changed — drop a new pin for them on the Door Map");
     return clientId;
   }
 
@@ -1728,7 +1763,7 @@ function ScheduleTab({ clients, scheduleDate, setScheduleDate, onOpenClient, onB
               <div className="shrink-0 flex flex-col items-start justify-start px-3 pt-3 gap-0.5" style={{ width: 88, background: `${BG}99`, fontFamily: FONT_MONO, borderRight: `1px solid ${LINE}` }}>
                 <span className="font-bold" style={{ color: P, fontSize: "0.72rem" }}>{formatTime(row.slot)}</span>
                 <span style={{ color: MUTED, fontSize: "0.62rem" }}>→ {endLabel}</span>
-                <span className="mt-1 rounded-full px-1.5 py-0.5" style={{ background: `${P}14`, color: P, fontSize: "0.6rem", fontWeight: 700 }}>{c.duration || 60}m</span>
+                <span className="mt-1 rounded-full px-1.5 py-0.5" style={{ background: `${P}14`, color: P, fontSize: "0.6rem", fontWeight: 700 }}>{formatDuration(c.duration || 60)}</span>
               </div>
 
               {/* Client column */}
@@ -1995,7 +2030,7 @@ function DetailDrawer({ client, onClose, onEdit, onDelete, onMark, noteDraft, se
           {(client.tags || []).map((t) => <TagBadge key={t} label={t} />)}
           {client.services.length === 0 && (client.tags || []).length === 0 && <span className="text-xs" style={{ color: MUTED }}>No service or tags set</span>}
         </div>
-        <p className="text-xs mt-2" style={{ color: MUTED }}>{freqLabel(client.frequency)} · next service {formatDate(client.nextServiceDate)}{client.nextServiceTime ? ` at ${formatTime(client.nextServiceTime)}` : ""}{client.nextServiceDate ? ` · ${client.duration || 60} min` : ""}</p>
+        <p className="text-xs mt-2" style={{ color: MUTED }}>{freqLabel(client.frequency)} · next service {formatDate(client.nextServiceDate)}{client.nextServiceTime ? ` at ${formatTime(client.nextServiceTime)}` : ""}{client.nextServiceDate ? ` · ${formatDuration(client.duration || 60)}` : ""}</p>
 
         {client.notes && (
           <div className="mt-4 rounded-lg p-3 text-sm" style={{ background: BG, color: INK_SOFT }}>
@@ -2191,14 +2226,19 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin, sh
     setPanel(null);
   }
 
+  // Only count pins actually dropped on the map — booking a client from the
+  // Clients/Schedule tabs also creates a pin record (with no lat/lng) to link
+  // them for scheduling, and those shouldn't inflate the map's status counts.
+  const mappedPins = useMemo(() => pins.filter((p) => p.lat != null && p.lng != null), [pins]);
+
   const counts = useMemo(() => {
     const c = {};
     HOUSE_STATUSES.forEach((s) => (c[s.id] = 0));
-    pins.forEach((p) => (c[p.statusId] = (c[p.statusId] || 0) + 1));
+    mappedPins.forEach((p) => (c[p.statusId] = (c[p.statusId] || 0) + 1));
     return c;
-  }, [pins]);
+  }, [mappedPins]);
 
-  const conversionRate = pins.length ? Math.round(((counts["appointment"] || 0) + (counts["completed"] || 0)) / pins.length * 100) : 0;
+  const conversionRate = mappedPins.length ? Math.round(((counts["appointment"] || 0) + (counts["completed"] || 0)) / mappedPins.length * 100) : 0;
 
   return (
     <div className="animate-fade-in">
@@ -2209,7 +2249,7 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin, sh
             {s.label} <span style={{ color: MUTED, fontWeight: 400 }}>({counts[s.id] || 0})</span>
           </span>
         ))}
-        {pins.length > 0 && (
+        {mappedPins.length > 0 && (
           <span className="flex items-center gap-1.5 text-xs rounded-full border px-2.5 py-1 font-semibold ml-auto" style={{ borderColor: `${PURPLE}40`, color: PURPLE, background: `${PURPLE}0A` }}>
             <Target size={11} /> {conversionRate}% conversion
           </span>
@@ -2282,6 +2322,26 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin, sh
                 </>
               ) : (
                 <>
+                  {!panel.linkedClient && clients.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-xs font-bold mb-1.5 tracking-wide" style={{ color: MUTED }}>LINK AN EXISTING CUSTOMER</p>
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const existing = clients.find((c) => c.id === e.target.value);
+                          if (existing) setClientForm({ ...emptyForm, ...existing });
+                        }}
+                        className="text-sm rounded-xl border px-3 py-2 w-full"
+                        style={{ borderColor: LINE, color: INK }}
+                      >
+                        <option value="">— Select from client list —</option>
+                        {clients.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name || "Unnamed"}{c.street ? ` · ${c.street}` : ""}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs mt-1" style={{ color: MUTED }}>Or just fill in the form below to add a new customer.</p>
+                    </div>
+                  )}
                   <ClientFieldsForm form={clientForm} setForm={setClientForm} compact clients={clients} />
                   <div className="flex justify-between gap-2 mt-4">
                     <button onClick={() => setExpanded(false)} className="text-xs rounded-xl border px-3 py-2 font-medium" style={{ borderColor: LINE, color: MUTED }}>← Back</button>
