@@ -231,6 +231,17 @@ function formatPhoneInput(raw) {
 function normStr(s) {
   return (s || "").trim().toLowerCase();
 }
+function splitName(name) {
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { firstName: "", lastName: "" };
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+}
+// Existing client records only have a combined `name` — backfill firstName/
+// lastName from it so the split-name form fields aren't blank when editing.
+function withNameParts(client) {
+  if (client.firstName || client.lastName) return client;
+  return { ...client, ...splitName(client.name) };
+}
 function findMatch(clients, info) {
   const phone = normPhone(info.phone);
   if (phone) {
@@ -294,6 +305,8 @@ function compressImageFile(file, maxDim, quality, callback) {
 
 const emptyForm = {
   name: "",
+  firstName: "",
+  lastName: "",
   phone: "",
   email: "",
   street: "",
@@ -678,7 +691,14 @@ function ClientFieldsForm({ form, setForm, compact, clients }) {
           Overlaps with {conflict.name || "another appointment"} at {formatTime(conflict.nextServiceTime)}. You can still save if that's intentional.
         </div>
       )}
-      <Field label="Name"><input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} style={inputStyle} /></Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="First name">
+          <input value={form.firstName || ""} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value, name: [e.target.value, f.lastName].filter(Boolean).join(" ") }))} style={inputStyle} />
+        </Field>
+        <Field label="Last name">
+          <input value={form.lastName || ""} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value, name: [f.firstName, e.target.value].filter(Boolean).join(" ") }))} style={inputStyle} />
+        </Field>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Phone"><input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: formatPhoneInput(e.target.value) }))} placeholder="(555) 555-5555" inputMode="tel" style={inputStyle} /></Field>
         <Field label="Email"><input value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} style={inputStyle} /></Field>
@@ -1138,7 +1158,7 @@ export default function App() {
     setModal({ mode: "add" });
   }
   function openEdit(client) {
-    setForm({ ...emptyForm, ...client });
+    setForm({ ...emptyForm, ...withNameParts(client) });
     setModal({ mode: "edit", clientId: client.id });
   }
   function openBook(date, time) {
@@ -2235,7 +2255,7 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin, sh
         const linked = pin.clientId ? clients.find((c) => c.id === pin.clientId) : null;
         setPanel({ mode: "edit", id: pin.id, lat: pin.lat, lng: pin.lng, label: pin.label, statusId: pin.statusId, notes: pin.notes || "", linkedClient: linked || null });
         setExpanded(false);
-        setClientForm(linked ? { ...emptyForm, ...linked } : { ...emptyForm, name: pin.label || "" });
+        setClientForm(linked ? { ...emptyForm, ...withNameParts(linked) } : { ...emptyForm, ...splitName(pin.label || ""), name: pin.label || "" });
         setExistingQuery("");
         setShowExistingDrop(false);
       });
@@ -2412,7 +2432,7 @@ function DoorMap({ pins, clients, persistPins, upsertClientAndPin, deletePin, sh
                           <div className="absolute z-50 left-0 right-0 mt-1 bg-white rounded-xl border shadow-xl overflow-hidden" style={{ borderColor: LINE, maxHeight: 220, overflowY: "auto" }}>
                             {matchingClients.map((c) => (
                               <button key={c.id} type="button" onMouseDown={() => {
-                                setClientForm({ ...emptyForm, ...c });
+                                setClientForm({ ...emptyForm, ...withNameParts(c) });
                                 setExistingQuery("");
                                 setShowExistingDrop(false);
                               }} className="w-full px-3 py-2 text-left hover:bg-slate-50 border-b last:border-0 transition-colors" style={{ borderColor: LINE }}>
