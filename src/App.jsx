@@ -599,7 +599,40 @@ function TabHero({ icons, from, to, title, subtitle, action, tag }) {
 /* ---------- shared client fields form ---------- */
 function ClientFieldsForm({ form, setForm, compact, clients }) {
   const [dismissed, setDismissed] = useState(false);
+  const [addrSuggestions, setAddrSuggestions] = useState([]);
+  const [showAddrDrop, setShowAddrDrop] = useState(false);
+  const addrTimer = useRef(null);
   const missing = getMissingFields(form);
+
+  function handleStreetInput(val) {
+    setForm((f) => ({ ...f, street: val }));
+    clearTimeout(addrTimer.current);
+    if (val.length < 4) { setAddrSuggestions([]); setShowAddrDrop(false); return; }
+    addrTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val)}&format=json&addressdetails=1&limit=5&countrycodes=ca`,
+          { headers: { "Accept-Language": "en", "User-Agent": "PeakPropertyCare/1.0" } }
+        );
+        const data = await res.json();
+        if (data.length > 0) { setAddrSuggestions(data); setShowAddrDrop(true); }
+        else { setAddrSuggestions([]); setShowAddrDrop(false); }
+      } catch { setShowAddrDrop(false); }
+    }, 450);
+  }
+
+  function pickAddress(item) {
+    const a = item.address || {};
+    setForm((f) => ({
+      ...f,
+      street: [a.house_number, a.road || a.pedestrian || a.footway].filter(Boolean).join(" "),
+      city:   a.city || a.town || a.village || a.hamlet || "",
+      state:  a.state || a.province || "",
+      zip:    a.postcode || "",
+    }));
+    setAddrSuggestions([]);
+    setShowAddrDrop(false);
+  }
 
   const conflict = useMemo(() => {
     if (!form.nextServiceDate || !form.nextServiceTime || !clients) return null;
@@ -642,7 +675,28 @@ function ClientFieldsForm({ form, setForm, compact, clients }) {
         <Field label="Phone"><input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: formatPhoneInput(e.target.value) }))} placeholder="(555) 555-5555" inputMode="tel" style={inputStyle} /></Field>
         <Field label="Email"><input value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} style={inputStyle} /></Field>
       </div>
-      <Field label="Street address"><input value={form.street} onChange={(e) => setForm((f) => ({ ...f, street: e.target.value }))} style={inputStyle} /></Field>
+      <Field label="Street address">
+        <div className="relative">
+          <input
+            value={form.street}
+            onChange={(e) => handleStreetInput(e.target.value)}
+            onFocus={() => addrSuggestions.length > 0 && setShowAddrDrop(true)}
+            onBlur={() => setTimeout(() => setShowAddrDrop(false), 200)}
+            placeholder="Start typing to search address…"
+            autoComplete="off"
+            style={inputStyle}
+          />
+          {showAddrDrop && addrSuggestions.length > 0 && (
+            <div className="absolute z-50 left-0 right-0 mt-1 bg-white rounded-xl border shadow-xl overflow-hidden" style={{ borderColor: LINE, maxHeight: 220, overflowY: "auto" }}>
+              {addrSuggestions.map((s, i) => (
+                <button key={i} type="button" onMouseDown={() => pickAddress(s)} className="w-full px-3 py-2.5 text-left hover:bg-slate-50 border-b last:border-0 transition-colors" style={{ borderColor: LINE }}>
+                  <p className="text-sm truncate" style={{ color: INK }}>{s.display_name}</p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </Field>
       <div className="grid grid-cols-3 gap-3">
         <Field label="City"><input value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} style={inputStyle} /></Field>
         <Field label="State">
@@ -1083,6 +1137,10 @@ export default function App() {
       delete next[client.id];
       return next;
     });
+    // Auto-send receipt email when job is marked complete
+    if (client.email) {
+      sendReceiptEmail(client, price, note, client.nextServiceDate, client.services, showToast);
+    }
   }
 
   const filtered = useMemo(() => {
@@ -2006,18 +2064,18 @@ async function sendReceiptEmail(client, price, notes, date, services, showToast)
   const d = date || todayStr();
   const svcMap = { window: "Window Cleaning", solar: "Solar Panel Cleaning", pressure: "Pressure Washing", gutter: "Gutter Cleaning" };
   const svcList = (services || client.services || []).map((s) => svcMap[s] || s);
-  const addr = formatAddress(client);
   const amt = formatMoney(Number(price) || 0);
   const dateLabel = new Date(d + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const orderId = `REC-${d.replace(/-/g, "")}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
   try {
     await emailjs.send(EJS_SVC, EJS_TPL, {
-      to_email:      client.email,
-      to_name:       client.name || "Valued Customer",
-      date:          dateLabel,
-      services_list: svcList.join(", "),
-      total:         amt,
-      address:       addr || "—",
-      notes:         notes || "",
+      to_email: client.email,
+      to_name:  client.name || "Valued Customer",
+      order_id: orderId,
+      service:  svcList.join(", "),
+      date:     dateLabel,
+      price:    amt,
+      cost:     { total: amt },
     }, EJS_KEY);
     showToast?.(`Receipt sent to ${client.email}`);
   } catch (err) {
