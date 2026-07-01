@@ -1071,7 +1071,7 @@ export default function App() {
     const price = getPriceDraft(client);
     const sellerName = client.scheduledBy || "Unknown";
     const sellerId = client.scheduledById;
-    const entry = { date: today, services: client.services, notes: note, price: Number(price) || 0, bookedBy: sellerName, bookedById: sellerId };
+    const entry = { date: today, serviceDate: client.nextServiceDate, serviceTime: client.nextServiceTime, services: client.services, notes: note, price: Number(price) || 0, bookedBy: sellerName, bookedById: sellerId };
     const nextDate = client.frequency === "one-time" ? null : addInterval(today, client.frequency);
     const updated = { ...client, history: [entry, ...(client.history || [])], nextServiceDate: nextDate, nextServiceTime: nextDate ? client.nextServiceTime : "" };
     persist(clients.map((c) => (c.id === client.id ? updated : c)), `Job logged${price ? ` · ${formatMoney(price)}` : ""}`);
@@ -1289,11 +1289,20 @@ function DashboardTab({ clients, pins, onOpenClient, setPage, onAdd, session }) 
 
   function buildLeaderboard(filterFn) {
     const totals = {};
+    // Completed jobs from history
     clients.forEach((c) => {
       (c.history || []).forEach((h) => {
         if (!h.bookedBy || !filterFn(h)) return;
         totals[h.bookedBy] = (totals[h.bookedBy] || 0) + (Number(h.price) || 0);
       });
+    });
+    // Pending booked jobs (not yet serviced) — credit goes to whoever booked
+    clients.forEach((c) => {
+      if (!c.scheduledBy || !c.nextServiceDate) return;
+      const price = Number(c.price) || 0;
+      if (!price) return;
+      if (!filterFn({ date: c.nextServiceDate })) return;
+      totals[c.scheduledBy] = (totals[c.scheduledBy] || 0) + price;
     });
     return Object.entries(totals)
       .map(([name, total]) => ({ name, total }))
@@ -1301,7 +1310,7 @@ function DashboardTab({ clients, pins, onOpenClient, setPage, onAdd, session }) 
       .slice(0, 5);
   }
 
-  const monthlyLb  = useMemo(() => buildLeaderboard((h) => h.date?.slice(0, 7) === thisMonth), [clients, thisMonth]);
+  const monthlyLb  = useMemo(() => buildLeaderboard((h) => (h.date || h.serviceDate || "").slice(0, 7) === thisMonth), [clients, thisMonth]);
   const alltimeLb  = useMemo(() => buildLeaderboard(() => true), [clients]);
   const leaderboard = lbView === "monthly" ? monthlyLb : alltimeLb;
 
@@ -1491,6 +1500,16 @@ const SLOT_H = 52; // px height per 30-min slot
 function ScheduleTab({ clients, scheduleDate, setScheduleDate, onOpenClient, onBookSlot }) {
   const dayClients = clients.filter((c) => c.nextServiceDate === scheduleDate);
 
+  // Completed jobs for this date (from history)
+  const completedJobs = [];
+  clients.forEach((c) => {
+    (c.history || []).forEach((h) => {
+      if ((h.serviceDate || h.date) === scheduleDate) {
+        completedJobs.push({ client: c, entry: h });
+      }
+    });
+  });
+
   // Build occupied map: slot → { client, isStart, numSlots }
   const occupied = {};
   dayClients.forEach((c) => {
@@ -1500,6 +1519,17 @@ function ScheduleTab({ clients, scheduleDate, setScheduleDate, onOpenClient, onB
       if (!occupied[s]) occupied[s] = { client: c, isStart: i === 0, numSlots: slots.length };
     });
   });
+
+  // Build completed map: slot → [{client, entry}]
+  const completedBySlot = {};
+  completedJobs.forEach(({ client, entry }) => {
+    const t = entry.serviceTime;
+    if (t && TIME_SLOTS.includes(t)) {
+      if (!completedBySlot[t]) completedBySlot[t] = [];
+      completedBySlot[t].push({ client, entry });
+    }
+  });
+  const completedUnslotted = completedJobs.filter(({ entry }) => !entry.serviceTime || !TIME_SLOTS.includes(entry.serviceTime));
 
   // Build merged display rows
   const displayRows = [];
@@ -1511,9 +1541,11 @@ function ScheduleTab({ clients, scheduleDate, setScheduleDate, onOpenClient, onB
       displayRows.push({ type: "booked", slot, client: occ.client, numSlots: occ.numSlots });
       i += occ.numSlots;
     } else if (occ) {
-      i++; // continuation — skip, already in a booked row
+      i++;
     } else {
-      displayRows.push({ type: "free", slot });
+      const comps = completedBySlot[slot];
+      if (comps) comps.forEach((item) => displayRows.push({ type: "done", slot, client: item.client, entry: item.entry }));
+      if (!comps) displayRows.push({ type: "free", slot });
       i++;
     }
   }
@@ -1529,21 +1561,36 @@ function ScheduleTab({ clients, scheduleDate, setScheduleDate, onOpenClient, onB
   }
 
   const bookedCount = dayClients.length;
-  const dayRevenue = dayClients.reduce((s, c) => s + (Number(c.price) || 0), 0);
+  const doneCount = completedJobs.length;
+  const dayRevenue = completedJobs.reduce((s, { entry }) => s + (Number(entry.price) || 0), 0)
+    + dayClients.reduce((s, c) => s + (Number(c.price) || 0), 0);
 
   return (
     <div>
       {/* Date navigator */}
-      <div className="flex items-center justify-between bg-white rounded-2xl border p-3 mb-3 shadow-sm" style={{ borderColor: LINE }}>
-        <button onClick={() => shiftDay(-1)} className="p-2 rounded-xl hover:bg-slate-100 transition-colors" style={{ color: MUTED }}><ChevronLeft size={18} /></button>
-        <div className="text-center">
-          <p className="font-bold text-sm" style={{ color: INK, fontFamily: FONT_HEAD }}>{heading}</p>
-          <div className="flex items-center justify-center gap-3 mt-0.5">
-            {!isToday && <button onClick={() => setScheduleDate(todayStr())} className="text-xs font-medium" style={{ color: P }}>← Today</button>}
-            {bookedCount > 0 && <span className="text-xs font-semibold" style={{ color: MUTED }}>{bookedCount} job{bookedCount !== 1 ? "s" : ""}{dayRevenue > 0 ? ` · ${formatMoney(dayRevenue)}` : ""}</span>}
+      <div className="bg-white rounded-2xl border p-3 mb-3 shadow-sm" style={{ borderColor: LINE }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-0.5">
+            <button onClick={() => shiftDay(-7)} className="px-2 py-2 rounded-xl hover:bg-slate-100 transition-colors text-xs font-bold" style={{ color: MUTED }} title="Back 1 week">«7</button>
+            <button onClick={() => shiftDay(-1)} className="p-2 rounded-xl hover:bg-slate-100 transition-colors" style={{ color: MUTED }}><ChevronLeft size={18} /></button>
+          </div>
+          <div className="text-center">
+            <p className="font-bold text-sm" style={{ color: INK, fontFamily: FONT_HEAD }}>{heading}</p>
+            <div className="flex items-center justify-center gap-2 mt-0.5 flex-wrap">
+              {doneCount > 0 && <span className="text-xs font-semibold" style={{ color: EMERALD }}>✓ {doneCount} done{dayRevenue > 0 ? ` · ${formatMoney(dayRevenue)}` : ""}</span>}
+              {bookedCount > 0 && <span className="text-xs font-semibold" style={{ color: P }}>{bookedCount} upcoming</span>}
+            </div>
+          </div>
+          <div className="flex items-center gap-0.5">
+            <button onClick={() => shiftDay(1)} className="p-2 rounded-xl hover:bg-slate-100 transition-colors" style={{ color: MUTED }}><ChevronRight size={18} /></button>
+            <button onClick={() => shiftDay(7)} className="px-2 py-2 rounded-xl hover:bg-slate-100 transition-colors text-xs font-bold" style={{ color: MUTED }} title="Forward 1 week">7»</button>
           </div>
         </div>
-        <button onClick={() => shiftDay(1)} className="p-2 rounded-xl hover:bg-slate-100 transition-colors" style={{ color: MUTED }}><ChevronRight size={18} /></button>
+        {/* Date picker + Today button */}
+        <div className="flex items-center justify-center gap-2 mt-2 pt-2" style={{ borderTop: `1px solid ${LINE}` }}>
+          <button onClick={() => setScheduleDate(todayStr())} className="text-xs font-bold px-3 py-1.5 rounded-lg" style={{ background: isToday ? P : P_LIGHT, color: isToday ? "white" : P }}>Today</button>
+          <input type="date" value={scheduleDate} onChange={(e) => { if (e.target.value) setScheduleDate(e.target.value); }} className="text-xs rounded-lg border px-2 py-1.5 outline-none" style={{ borderColor: LINE, color: INK, fontFamily: FONT_MONO }} />
+        </div>
       </div>
 
       {/* Table */}
@@ -1565,7 +1612,7 @@ function ScheduleTab({ clients, scheduleDate, setScheduleDate, onOpenClient, onB
         </div>
 
         {/* Rows */}
-        {displayRows.map((row) => {
+        {displayRows.map((row, ri) => {
           if (row.type === "free") {
             return (
               <div key={row.slot} className="flex items-stretch border-b last:border-0" style={{ borderColor: LINE, minHeight: SLOT_H }}>
@@ -1576,6 +1623,32 @@ function ScheduleTab({ clients, scheduleDate, setScheduleDate, onOpenClient, onB
                   <Plus size={13} />
                   <span>Available — click to book</span>
                 </button>
+              </div>
+            );
+          }
+
+          if (row.type === "done") {
+            const c = row.client;
+            const h = row.entry;
+            return (
+              <div key={`done-${row.slot}-${c.id}-${ri}`} className="flex items-stretch border-b last:border-0" style={{ borderColor: LINE, minHeight: SLOT_H }}>
+                <div className="shrink-0 flex flex-col items-start justify-center px-3 gap-0.5" style={{ width: 88, background: `${EM_L}60`, fontFamily: FONT_MONO, borderRight: `1px solid ${LINE}` }}>
+                  <span className="font-bold" style={{ color: EMERALD, fontSize: "0.72rem" }}>{formatTime(row.slot)}</span>
+                  <CheckCircle2 size={11} style={{ color: EMERALD }} />
+                </div>
+                <button onClick={() => onOpenClient(c.id)} className="flex-1 flex items-center gap-3 px-4 text-left hover:bg-emerald-50 transition-colors min-w-0" style={{ borderLeft: `3px solid ${EMERALD}`, background: `${EMERALD}04` }}>
+                  <Avatar name={c.name} size={28} />
+                  <div className="min-w-0">
+                    <p className="font-bold text-sm truncate" style={{ color: INK, fontFamily: FONT_HEAD }}>{c.name || "Unnamed client"}</p>
+                    <p className="text-xs mt-0.5 font-semibold" style={{ color: EMERALD }}>Completed</p>
+                  </div>
+                </button>
+                <div className="shrink-0 hidden sm:flex flex-col items-start justify-center gap-1 px-3" style={{ width: 160, borderLeft: `1px solid ${LINE}` }}>
+                  {(h.services || []).map((s) => <ServiceBadge key={s} id={s} />)}
+                </div>
+                <div className="shrink-0 flex items-center justify-end px-4" style={{ width: 80, borderLeft: `1px solid ${LINE}` }}>
+                  {h.price ? <span className="font-black text-sm" style={{ color: EMERALD, fontFamily: FONT_MONO }}>{formatMoney(h.price)}</span> : <span style={{ color: MUTED, fontSize: "0.75rem" }}>—</span>}
+                </div>
               </div>
             );
           }
@@ -1624,7 +1697,7 @@ function ScheduleTab({ clients, scheduleDate, setScheduleDate, onOpenClient, onB
         })}
       </div>
 
-      {/* Unslotted clients (no time set or time outside slots) */}
+      {/* Unslotted clients (no time set) */}
       {unslotted.length > 0 && (
         <div className="mt-4">
           <p className="text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: MUTED }}>No time set</p>
@@ -1637,6 +1710,25 @@ function ScheduleTab({ clients, scheduleDate, setScheduleDate, onOpenClient, onB
                   <p className="text-xs truncate" style={{ color: MUTED }}>{formatAddress(c)}</p>
                 </div>
                 <div className="flex gap-1 shrink-0">{c.services.map((s) => <ServiceBadge key={s} id={s} />)}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {/* Completed jobs without a time slot */}
+      {completedUnslotted.length > 0 && (
+        <div className="mt-4">
+          <p className="text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: EMERALD }}>Completed (no time recorded)</p>
+          <div className="flex flex-col gap-2">
+            {completedUnslotted.map(({ client: c, entry: h }, i) => (
+              <button key={`cu-${i}`} onClick={() => onOpenClient(c.id)} className="bg-white rounded-xl border px-4 py-3 text-left flex items-center gap-3 hover:bg-emerald-50 transition-colors shadow-sm" style={{ borderColor: `${EMERALD}40` }}>
+                <CheckCircle2 size={18} style={{ color: EMERALD, flexShrink: 0 }} />
+                <Avatar name={c.name} size={30} />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm truncate" style={{ color: INK }}>{c.name || "Unnamed client"}</p>
+                  <p className="text-xs truncate" style={{ color: MUTED }}>{formatAddress(c)}</p>
+                </div>
+                {h.price > 0 && <span className="font-black text-sm shrink-0" style={{ color: EMERALD, fontFamily: FONT_MONO }}>{formatMoney(h.price)}</span>}
               </button>
             ))}
           </div>
